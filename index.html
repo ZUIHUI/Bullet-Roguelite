@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#05070d" />
+    <title>星吞龍</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./assets/app-icon.png?v=37" type="image/png" />
+    <link rel="stylesheet" href="./styles.css?v=37" />
+  </head>
+  <body>
+    <main class="game-shell" aria-label="星吞龍遊戲">
+      <canvas id="gameCanvas"></canvas>
+
+      <section class="hud" aria-live="polite">
+        <div class="hud-row">
+          <div class="stat">
+            <span class="stat-label">分數</span>
+            <strong id="scoreText">0</strong>
+          </div>
+          <div class="stat center">
+            <span class="stat-label">浪潮</span>
+            <strong id="waveText">1</strong>
+          </div>
+          <div class="stat right">
+            <span class="stat-label">擊破</span>
+            <strong id="killText">0</strong>
+          </div>
+        </div>
+
+        <div class="bar-stack">
+          <div class="meter hp" aria-label="生命">
+            <span id="hpFill"></span>
+          </div>
+          <div class="meter charge" aria-label="龍息">
+            <span id="chargeFill"></span>
+          </div>
+          <div class="meter wave" aria-label="關卡進度">
+            <span id="waveFill"></span>
+          </div>
+        </div>
+
+        <div id="bossHud" class="boss-hud" aria-label="Boss">
+          <div>
+            <span>Boss</span>
+            <strong id="bossNameText">裂隙巨龍</strong>
+          </div>
+          <div class="meter boss">
+            <span id="bossHpFill"></span>
+          </div>
+        </div>
+
+        <div id="skillHud" class="skill-hud" aria-label="本局技能"></div>
+      </section>
+
+      <div id="waveBanner" class="wave-banner" aria-live="polite"></div>
+
+      <div class="edge-glow" aria-hidden="true"></div>
+
+      <div class="controls">
+        <button id="pauseButton" class="icon-button small" type="button" aria-label="暫停">Ⅱ</button>
+        <button id="ultimateButton" class="icon-button ultimate" type="button" aria-label="神器大絕">絕</button>
+        <button id="absorbButton" class="icon-button absorb" type="button" aria-label="吞吐">吞</button>
+      </div>
+
+      <section id="startOverlay" class="overlay home-overlay active">
+        <div class="home-screen">
+          <header class="home-header">
+            <div>
+              <p class="eyebrow">dragon bullet roguelite</p>
+              <h1>星吞龍</h1>
+            </div>
+            <img class="title-mark small" src="./assets/app-icon.png?v=37" alt="" />
+          </header>
+
+          <section class="resource-strip" aria-label="資源">
+            <div>
+              <span>金幣</span>
+              <strong id="goldText">0</strong>
+            </div>
+            <div>
+              <span>龍晶</span>
+              <strong id="scaleText">0</strong>
+            </div>
+            <div>
+              <span>掛機</span>
+              <strong id="idleText">0</strong>
+            </div>
+          </section>
+
+          <section class="featured-dragon" aria-label="目前龍">
+            <div id="dragonPreview" class="dragon-preview" aria-hidden="true"></div>
+            <div>
+              <p class="eyebrow" id="dragonRoleText">swallower</p>
+              <h2 id="dragonNameText">星芽龍</h2>
+              <p id="dragonInfoText" class="info-text"></p>
+              <div class="mini-actions">
+                <button id="levelButton" class="secondary-button" type="button">強化</button>
+                <button id="starButton" class="secondary-button" type="button">升星</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="entry-grid" aria-label="入口">
+            <button class="entry-button primary-entry" type="button" data-entry="battle">
+              <span>出戰</span>
+              <strong>進關卡</strong>
+            </button>
+            <button class="entry-button" type="button" data-entry="dragons">
+              <span>龍族</span>
+              <strong>幻化</strong>
+            </button>
+            <button class="entry-button" type="button" data-entry="artifact">
+              <span>神器</span>
+              <strong>大絕</strong>
+            </button>
+            <button class="entry-button" type="button" data-entry="stage">
+              <span>關卡</span>
+              <strong>冒險</strong>
+            </button>
+            <button class="entry-button" type="button" data-entry="growth">
+              <span>養成</span>
+              <strong>強化</strong>
+            </button>
+            <button class="entry-button" type="button" data-entry="summon">
+              <span>召喚</span>
+              <strong>抽龍</strong>
+            </button>
+          </section>
+
+          <div class="home-tabs" role="tablist" aria-label="主畫面">
+            <button class="tab-button is-active" type="button" data-tab="dragons">龍／幻化</button>
+            <button class="tab-button" type="button" data-tab="artifact">神器</button>
+            <button class="tab-button" type="button" data-tab="stage">關卡</button>
+            <button class="tab-button" type="button" data-tab="growth">養成</button>
+          </div>
+
+          <section id="dragonsTab" class="tab-panel active" aria-label="龍列表">
+            <div id="formPanel" class="form-panel"></div>
+            <div id="dragonGrid" class="dragon-grid"></div>
+          </section>
+
+          <section id="artifactTab" class="tab-panel" aria-label="神器">
+            <div id="artifactPanel" class="artifact-panel"></div>
+          </section>
+
+          <section id="stageTab" class="tab-panel" aria-label="關卡">
+            <div id="storyPanel" class="story-panel"></div>
+            <div id="stageGrid" class="stage-grid"></div>
+          </section>
+
+          <section id="growthTab" class="tab-panel" aria-label="長期養成">
+            <div class="growth-grid">
+              <button id="claimIdleButton" class="growth-card" type="button">
+                <span>掛機收益</span>
+                <strong id="claimIdleText">領取 0金</strong>
+              </button>
+              <section class="equipment-panel" aria-label="寶物裝備">
+                <div class="equipment-head">
+                  <span>寶物裝備</span>
+                  <strong id="equipmentText">吞星鱗 +0</strong>
+                </div>
+                <div id="equipmentGrid" class="hex-equipment-grid"></div>
+                <button id="equipButton" class="growth-card equip-action" type="button">
+                  <span>晶體強化</span>
+                  <strong id="equipmentCostText">強化</strong>
+                </button>
+              </section>
+              <button id="skillButton" class="growth-card" type="button">
+                <span>技能研究</span>
+                <strong id="skillText">吞噬學 +0</strong>
+              </button>
+              <button id="summonButton" class="growth-card" type="button">
+                <span>龍影召喚</span>
+                <strong id="summonText">80晶</strong>
+              </button>
+            </div>
+          </section>
+
+          <footer class="launch-bar">
+            <div>
+              <span id="selectedStageText">星塵溪谷</span>
+              <strong id="powerText">戰力 0</strong>
+            </div>
+            <button id="startButton" class="primary-button" type="button">進關卡</button>
+          </footer>
+        </div>
+      </section>
+
+      <section id="upgradeOverlay" class="overlay">
+        <div class="panel upgrade-panel">
+          <p class="eyebrow">dragon surge</p>
+          <h2>選擇龍紋</h2>
+          <div id="upgradeChoices" class="upgrade-grid"></div>
+        </div>
+      </section>
+
+      <section id="endOverlay" class="overlay">
+        <div class="panel end-panel">
+          <p class="eyebrow" id="endLabel">run complete</p>
+          <h2 id="endTitle">再飛一次</h2>
+          <p class="end-score" id="finalScore">0</p>
+          <button id="restartButton" class="primary-button" type="button">重新開始</button>
+        </div>
+      </section>
+    </main>
+
+    <script src="./game.js?v=37"></script>
+  </body>
+</html>
