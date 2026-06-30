@@ -66,7 +66,7 @@ const SAVE_KEY = "starSwallowDragonSave.v1";
 const DEVICE_ID_KEY = "starSwallowDragonDeviceId.v1";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "players";
-const ASSET_VERSION = "40";
+const ASSET_VERSION = "41";
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDxQqZWabxFJ0RWc5Xr3bVjBj1QctS4hGE",
   authDomain: "swallow-5407f.firebaseapp.com",
@@ -1267,8 +1267,11 @@ function renderArtifactPanel() {
   const artifact = selectedArtifact();
   const artifactMeta = getArtifactMeta(artifact);
   const unlockText = artifactMeta.unlocked
-    ? `升級 ${artifactUpgradeCost(artifact)}晶`
-    : `解鎖 ${artifact.cost}晶`;
+    ? `強化 ${artifactUpgradeCost(artifact)}晶`
+    : `啟動 ${artifact.cost}晶`;
+  const artifactStatus = artifactMeta.unlocked
+    ? `神器加成 Lv.${artifactMeta.level} · 專屬大絕強化中`
+    : "大絕會自動施放 · 尚未啟動神器加成";
 
   ui.artifactPanel.innerHTML = `
     <div class="artifact-title">
@@ -1279,7 +1282,8 @@ function renderArtifactPanel() {
       ${spriteMarkup(`artifact-${artifact.id}`, "art-sprite artifact-art", artifact.name)}
     </div>
     <p class="info-text">${dragon.ultimateName}：${dragon.ultimateDesc}</p>
-    <p class="info-text">神器 Lv.${artifactMeta.level} · ${artifactMeta.unlocked ? "大絕已解鎖" : "尚未解鎖大絕"}</p>
+    <p class="info-text">${artifactStatus}</p>
+    <p class="info-text">能量滿會自動施放；神器啟動後提升持續時間與傷害。</p>
     <button id="artifactActionButton" class="primary-button" type="button">${unlockText}</button>
   `;
 
@@ -2409,11 +2413,13 @@ function damagePlayer(amount) {
 function completeStage() {
   const stage = state.currentStage;
   const index = stageIndex(stage);
+  const nextStage = STAGES[Math.min(index + 1, STAGES.length - 1)];
   const bonus = Math.floor(state.score / 100);
   state.meta.gold += stage.gold + bonus;
   state.meta.scales += stage.scales;
   state.meta.highestStageIndex = Math.max(state.meta.highestStageIndex, Math.min(index + 1, STAGES.length - 1));
   state.meta.clearedStages[stage.id] = true;
+  state.meta.selectedStageId = nextStage.id;
   saveMeta();
   state.mode = "clear";
   state.currentBoss = null;
@@ -2424,10 +2430,10 @@ function completeStage() {
   ui.ultimateButton.classList.remove("is-ready");
   hideWaveBanner();
   updateBossHud();
-  ui.endLabel.textContent = `第${stage.chapter}章 clear`;
-  ui.endTitle.textContent = stage.chapterTitle;
-  ui.finalScore.textContent = `${stage.storyClear} +${stage.gold + bonus}金 / +${stage.scales}晶`;
-  ui.restartButton.textContent = "回主畫面";
+  ui.endLabel.textContent = `${stage.stageNo} CLEAR`;
+  ui.endTitle.textContent = `${stage.chapterTitle}突破`;
+  ui.finalScore.textContent = `${stage.storyClear} +${stage.gold + bonus}金 / +${stage.scales}晶 · 下一關 ${nextStage.stageNo}`;
+  ui.restartButton.textContent = "回主畫面強化";
   ui.endOverlay.classList.add("active");
 }
 
