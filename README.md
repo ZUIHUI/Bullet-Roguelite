@@ -13,7 +13,7 @@
 - 養成：龍強化、升星、龍影召喚、六角晶體裝備、技能研究、掛機收益領取都有最小可玩版本。
 - 美術：`assets/dragons-clean/dragon-*.png` 是從設定集整理出的透明底 UI 龍圖，`assets/dragons/` 保留原整理版；`assets/battle-dragons/battle-*.png` 是各龍專屬上帝視角戰鬥 CG；`assets/dragon-sheets/` 保留原設定集參考圖，`assets/visuals.svg` 保留作為神器與關卡 sprite。
 - 戰鬥表現：主畫面與龍卡使用設定集整理出的 PNG；關卡中的龍使用對應的 `battle-*.png` 俯視 CG，再由 canvas 做飛行擺尾、分層呼吸、張嘴吸收、吸入漩渦風場、子彈捲入拖尾、能量環與反吐爆發動畫。
-- 存檔：進度會寫入 Firebase Firestore `players/{deviceId}`，並同步保留一份本機快取。
+- 存檔：單人進度會寫入 Firebase Firestore `singlePlayerSaves/{gameId__deviceId__slot}`，並同步保留一份本機快取。
 
 ## 開啟
 

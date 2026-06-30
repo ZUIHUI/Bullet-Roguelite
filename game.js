@@ -64,9 +64,12 @@ const ui = {
 const TAU = Math.PI * 2;
 const SAVE_KEY = "starSwallowDragonSave.v1";
 const DEVICE_ID_KEY = "starSwallowDragonDeviceId.v1";
+const SAVE_SCHEMA_VERSION = 2;
+const FIREBASE_GAME_ID = "star-swallow-dragon";
+const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
-const FIREBASE_COLLECTION = "players";
-const ASSET_VERSION = "41";
+const FIREBASE_COLLECTION = "singlePlayerSaves";
+const ASSET_VERSION = "42";
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDxQqZWabxFJ0RWc5Xr3bVjBj1QctS4hGE",
   authDomain: "swallow-5407f.firebaseapp.com",
@@ -505,6 +508,13 @@ const DRAGON_FORMS = [
     stars: 1,
     multipliers: { hp: 1, attack: 1, speed: 1, swallow: 1, counter: 1 },
     effect: "均衡出戰",
+    skin: {
+      name: "原色皮膚",
+      main: "#42efd2",
+      accent: "#ffd166",
+      filter: "saturate(1.06) contrast(1.04)",
+      aura: "balanced",
+    },
   },
   {
     id: "devour",
@@ -513,6 +523,13 @@ const DRAGON_FORMS = [
     stars: 1,
     multipliers: { hp: 1.05, attack: 0.92, speed: 0.94, swallow: 1.24, counter: 1.08 },
     effect: "吞彈能量提高",
+    skin: {
+      name: "星喰皮膚",
+      main: "#9b7cff",
+      accent: "#42efd2",
+      filter: "saturate(1.18) hue-rotate(18deg) contrast(1.08)",
+      aura: "vortex",
+    },
   },
   {
     id: "swift",
@@ -521,6 +538,13 @@ const DRAGON_FORMS = [
     stars: 2,
     multipliers: { hp: 0.92, attack: 1.02, speed: 1.22, swallow: 0.98, counter: 1.04 },
     effect: "移動與連射更快",
+    skin: {
+      name: "疾風皮膚",
+      main: "#7aa7ff",
+      accent: "#7df9ff",
+      filter: "saturate(1.22) hue-rotate(-16deg) brightness(1.06)",
+      aura: "wind",
+    },
   },
   {
     id: "flare",
@@ -529,6 +553,13 @@ const DRAGON_FORMS = [
     stars: 3,
     multipliers: { hp: 0.9, attack: 1.18, speed: 0.98, swallow: 0.92, counter: 1.24 },
     effect: "半槽可出吐息",
+    skin: {
+      name: "熾息皮膚",
+      main: "#ff6b6b",
+      accent: "#ffd166",
+      filter: "saturate(1.28) hue-rotate(-8deg) contrast(1.1)",
+      aura: "flare",
+    },
   },
 ];
 
@@ -646,6 +677,10 @@ function createDefaultMeta() {
     };
   }
   return {
+    saveSchemaVersion: SAVE_SCHEMA_VERSION,
+    saveMode: "single-player",
+    gameId: FIREBASE_GAME_ID,
+    saveSlot: FIREBASE_SAVE_SLOT,
     gold: 260,
     scales: 80,
     idleGold: 0,
@@ -665,6 +700,7 @@ function createDefaultMeta() {
 let saveStore = {
   type: "local",
   deviceId: "",
+  saveDocId: "",
 };
 
 function getDeviceId() {
@@ -692,6 +728,10 @@ function mergeMeta(saved) {
   const fallback = createDefaultMeta();
   if (!saved) return fallback;
   const merged = { ...fallback, ...saved };
+  merged.saveSchemaVersion = SAVE_SCHEMA_VERSION;
+  merged.saveMode = "single-player";
+  merged.gameId = FIREBASE_GAME_ID;
+  merged.saveSlot = FIREBASE_SAVE_SLOT;
   merged.dragons = { ...fallback.dragons, ...saved.dragons };
   merged.artifacts = { ...fallback.artifacts, ...saved.artifacts };
   merged.clearedStages = { ...fallback.clearedStages, ...saved.clearedStages };
@@ -743,10 +783,12 @@ async function initFirebaseStore() {
     }
     const db = getFirestore(app);
     const deviceId = getDeviceId();
+    const saveDocId = `${FIREBASE_GAME_ID}__${deviceId}__${FIREBASE_SAVE_SLOT}`;
     return {
       type: "firebase",
       deviceId,
-      docRef: doc(db, FIREBASE_COLLECTION, deviceId),
+      saveDocId,
+      docRef: doc(db, FIREBASE_COLLECTION, saveDocId),
       getDoc,
       serverTimestamp,
       setDoc,
@@ -758,35 +800,44 @@ async function initFirebaseStore() {
 }
 
 async function loadMeta() {
-  const localMeta = mergeMeta(readLocalMetaRaw());
-  syncFirebaseMeta(localMeta).catch((error) => {
+  const rawMeta = readLocalMetaRaw();
+  const localMeta = mergeMeta(rawMeta);
+  syncFirebaseMeta(localMeta, Boolean(rawMeta)).catch((error) => {
     console.warn("Firebase background sync failed; local save remains active.", error);
   });
   return localMeta;
 }
 
-async function syncFirebaseMeta(localMeta) {
+async function syncFirebaseMeta(localMeta, hasLocalSave = true) {
   saveStore = await initFirebaseStore();
   if (saveStore.type !== "firebase") return;
 
   try {
     const snapshot = await withTimeout(saveStore.getDoc(saveStore.docRef), 4500, null);
+    let nextMeta = state.meta || localMeta;
     if (snapshot?.exists()) {
       const data = snapshot.data();
       const remoteMeta = mergeMeta(data.meta || data);
-      state.meta = remoteMeta;
-      persistLocalMeta(remoteMeta);
+      const remoteTime = Number(remoteMeta.lastSeenAt || 0);
+      const localTime = Number(localMeta.lastSeenAt || 0);
+      nextMeta = !hasLocalSave || remoteTime > localTime ? remoteMeta : localMeta;
+      state.meta = nextMeta;
+      persistLocalMeta(nextMeta);
       renderHome();
       updateHud();
-      return;
     }
 
     await withTimeout(
       saveStore.setDoc(
         saveStore.docRef,
         {
+          gameId: FIREBASE_GAME_ID,
+          saveMode: "single-player",
+          saveSlot: FIREBASE_SAVE_SLOT,
+          saveSchemaVersion: SAVE_SCHEMA_VERSION,
           deviceId: saveStore.deviceId,
-          meta: JSON.parse(JSON.stringify(state.meta || localMeta)),
+          saveDocId: saveStore.saveDocId,
+          meta: JSON.parse(JSON.stringify(nextMeta)),
           updatedAt: saveStore.serverTimestamp(),
         },
         { merge: true },
@@ -810,7 +861,12 @@ function saveMeta() {
     .setDoc(
       saveStore.docRef,
       {
+        gameId: FIREBASE_GAME_ID,
+        saveMode: "single-player",
+        saveSlot: FIREBASE_SAVE_SLOT,
+        saveSchemaVersion: SAVE_SCHEMA_VERSION,
         deviceId: saveStore.deviceId,
+        saveDocId: saveStore.saveDocId,
         meta,
         updatedAt: saveStore.serverTimestamp(),
       },
@@ -850,6 +906,15 @@ function selectedForm(dragon = selectedDragon()) {
   const dragonMeta = state.meta?.dragons?.[dragon.id] || { stars: 1 };
   const form = DRAGON_FORMS.find((item) => item.id === state.meta?.selectedFormId) || DRAGON_FORMS[0];
   return dragonMeta.stars >= form.stars ? form : DRAGON_FORMS[0];
+}
+
+function formSkin(form = selectedForm()) {
+  return form.skin || DRAGON_FORMS[0].skin;
+}
+
+function formSkinStyle(form) {
+  const skin = formSkin(form);
+  return `--skin-main:${skin.main};--skin-accent:${skin.accent};--skin-filter:${skin.filter}`;
 }
 
 function dragonStats(dragon = selectedDragon(), form = selectedForm(dragon)) {
@@ -1109,7 +1174,15 @@ function colorAlpha(hex, alpha) {
 
 function renderDragonPreview() {
   const dragon = selectedDragon();
-  ui.dragonPreview.innerHTML = dragonArtMarkup(dragon, "dragon-preview-art", dragon.name);
+  const form = selectedForm(dragon);
+  const skin = formSkin(form);
+  ui.dragonPreview.className = `dragon-preview skin-${form.id}`;
+  ui.dragonPreview.style.cssText = formSkinStyle(form);
+  ui.dragonPreview.innerHTML = `
+    <span class="skin-label">${skin.name}</span>
+    <span class="skin-ring" aria-hidden="true"></span>
+    ${dragonArtMarkup(dragon, "dragon-preview-art", `${dragon.name} ${skin.name}`)}
+  `;
 }
 
 function renderHome() {
@@ -1203,8 +1276,9 @@ function renderFormPanel() {
     button.type = "button";
     button.disabled = locked;
     button.className = `form-card${selected.id === form.id ? " is-selected" : ""}${locked ? " is-locked" : ""}`;
+    button.style.cssText = formSkinStyle(form);
     button.innerHTML = `
-      <span>${form.label}</span>
+      <span><i class="form-swatch" aria-hidden="true"></i>${form.label} · ${formSkin(form).name}</span>
       <strong>${form.name}</strong>
       <em>${locked ? `${form.stars}星解鎖` : form.effect}</em>
     `;
@@ -1447,6 +1521,7 @@ function createPlayer() {
     invulnerable: 0,
     absorbTime: 0,
     releasePulse: 0,
+    shotIndex: 0,
   };
 }
 
@@ -1655,8 +1730,11 @@ function addSwallowBurst(x, y, color) {
 
 function getMawZone() {
   const player = state.player;
-  const rangeBoost = input.absorbing ? 1.38 : 1;
-  const widthBoost = input.absorbing ? 1.55 : 1;
+  const form = state.currentForm || selectedForm();
+  const formReach = form.id === "devour" ? 1.1 : form.id === "swift" ? 0.96 : 1;
+  const formWidth = form.id === "devour" ? 1.14 : form.id === "flare" ? 0.94 : 1;
+  const rangeBoost = input.absorbing ? 1.72 * formReach : 1;
+  const widthBoost = input.absorbing ? 2.12 * formWidth : 1;
   const length = state.upgrades.swallowLength * rangeBoost;
   const width = state.upgrades.swallowWidth * widthBoost;
   return {
@@ -1670,12 +1748,12 @@ function getMawZone() {
 function getMawHit(bullet) {
   const maw = getMawZone();
   const ahead = maw.y - bullet.y;
-  if (ahead < -18 || ahead > maw.length) return null;
+  if (ahead < -34 - bullet.r || ahead > maw.length + bullet.r * 2) return null;
 
   const progress = clamp(ahead / maw.length, 0, 1);
-  const halfWidth = maw.width * (0.68 + progress * 0.95);
+  const halfWidth = maw.width * (0.86 + progress * 1.18);
   const lateral = Math.abs(bullet.x - maw.x);
-  if (lateral > halfWidth + bullet.r) return null;
+  if (lateral > halfWidth + bullet.r * 1.9) return null;
 
   const mouthDistance = Math.hypot(bullet.x - maw.x, bullet.y - maw.y);
   return {
@@ -1683,9 +1761,21 @@ function getMawHit(bullet) {
     progress,
     lateral,
     halfWidth,
-    pull: clamp(1 - ahead / maw.length, 0.48, 1),
+    pull: clamp(1 - ahead / maw.length, 0.58, 1.15),
     mouthDistance,
   };
+}
+
+function bulletTouchesPlayerBody(bullet, player) {
+  const bodyX = player.r * (input.absorbing ? 0.84 : 0.94) + bullet.r * 0.9;
+  const bodyY = player.r * (input.absorbing ? 1.08 : 1.22) + bullet.r * 0.9;
+  const dx = bullet.x - player.x;
+  const dy = bullet.y - (player.y + player.r * 0.1);
+  return (dx / bodyX) ** 2 + (dy / bodyY) ** 2 < 1;
+}
+
+function addUltimateCharge(amount) {
+  state.ultimateCharge = clamp(state.ultimateCharge + amount, 0, 100);
 }
 
 function storeBullet(bullet) {
@@ -1701,9 +1791,9 @@ function storeBullet(bullet) {
     power: bullet.power,
     radius: bullet.r,
   });
-  const absorbBonus = form.id === "devour" ? 1.2 : 1;
-  player.charge = clamp(player.charge + bullet.power * 1.35 * absorbBonus, 0, player.maxCharge);
-  state.ultimateCharge = clamp(state.ultimateCharge + bullet.power * 0.85 * absorbBonus, 0, 100);
+  const absorbBonus = form.id === "devour" ? 1.28 : form.id === "swift" ? 0.95 : 1;
+  player.charge = clamp(player.charge + bullet.power * 1.58 * absorbBonus, 0, player.maxCharge);
+  addUltimateCharge(bullet.power * 1.05 * absorbBonus);
   state.score += 24;
   addParticles(bullet.x, bullet.y, 12, bullet.color, 230);
   addSwallowBurst(player.x, player.y - 48, bullet.color);
@@ -1879,16 +1969,25 @@ function spawnEnemyHazard(enemy) {
 
 function firePlayerShots() {
   const player = state.player;
-  const spread = state.upgrades.shotSpread;
+  if (!player) return;
+  const spread = Math.max(1, state.upgrades.shotSpread || 1);
   const form = state.currentForm || selectedForm();
   const dragon = state.currentDragon || selectedDragon();
   const dragonId = dragon.id;
   const [mainColor, accentColor] = dragon.colors;
-  const formDamage = form.id === "flare" ? 1.08 : 1;
-  const baseDamage = state.upgrades.shotDamage * formDamage;
-  const lanes = (count, gap = 14) => {
-    const middle = (count - 1) / 2;
-    return Array.from({ length: count }, (_, index) => ({ lane: index - middle, x: (index - middle) * gap }));
+  const absorbing = input.absorbing && state.mode === "playing";
+  const shotIndex = (player.shotIndex = (player.shotIndex || 0) + 1);
+  const pulseSide = shotIndex % 2 === 0 ? 1 : -1;
+  const formDamage = form.id === "flare" ? 1.08 : form.id === "swift" ? 0.96 : 1;
+  const baseDamage = state.upgrades.shotDamage * formDamage * (absorbing ? 0.94 : 1);
+  const focusLane = absorbing ? 1 : 0;
+  const lanes = (count, gap = 14, offset = 0) => {
+    const safeCount = Math.max(1, Math.round(count));
+    const middle = (safeCount - 1) / 2;
+    return Array.from({ length: safeCount }, (_, index) => ({
+      lane: index - middle + offset,
+      x: (index - middle + offset) * gap,
+    }));
   };
   const emit = ({
     x = 0,
@@ -1904,6 +2003,14 @@ function firePlayerShots() {
     burn = false,
     slow = false,
     pierce = 0,
+    shape = dragonId,
+    waveAmp = 0,
+    waveRate = 7,
+    wavePhase = shotIndex,
+    chainRadius = 0,
+    splashRadius = 0,
+    splashDamage = 0,
+    accel = 0,
   }) => {
     state.shots.push({
       x: player.x + x,
@@ -1919,168 +2026,243 @@ function firePlayerShots() {
       burn,
       slow,
       pierce,
+      shape,
+      waveAmp,
+      waveRate,
+      wavePhase,
+      chainRadius,
+      splashRadius,
+      splashDamage,
+      accel,
     });
   };
 
   switch (dragonId) {
     case "ember": {
-      for (const { lane, x } of lanes(1 + spread, 13)) {
+      for (const { lane, x } of lanes(1 + spread + focusLane, 15)) {
         emit({
           x,
-          angle: -Math.PI / 2 + lane * 0.12,
-          speed: 470,
-          r: 8.5,
+          angle: -Math.PI / 2 + lane * 0.13,
+          speed: 485,
+          r: 8.8,
           damage: 1.18,
-          color: lane % 2 ? accentColor : "#ff7a2f",
+          color: Math.round(Math.abs(lane)) % 2 ? accentColor : "#ff7a2f",
           burn: true,
           life: 1.45,
+          shape: "fire",
+          splashRadius: 72,
+          splashDamage: 0.18,
         });
+      }
+      if (shotIndex % 3 === 0) {
+        emit({ y: -60, speed: 430, r: 12, damage: 1.42, color: accentColor, burn: true, life: 1.35, shape: "fire" });
       }
       break;
     }
     case "tide": {
-      for (const { lane, x } of lanes(2 + spread, 17)) {
+      for (const { lane, x } of lanes(2 + spread + focusLane, 18)) {
         emit({
           x,
-          angle: -Math.PI / 2 + lane * 0.18,
-          speed: 500,
-          r: 6.8,
-          damage: 0.82,
-          color: lane % 2 ? accentColor : mainColor,
+          y: -48 + Math.abs(lane) * 3,
+          angle: -Math.PI / 2 + lane * 0.2,
+          speed: 465 + Math.abs(lane) * 14,
+          r: 7.2 + (shotIndex % 2) * 1.2,
+          damage: 0.78,
+          color: Math.round(Math.abs(lane)) % 2 ? accentColor : mainColor,
           slow: true,
-          homing: Math.abs(lane) <= 0.5,
-          turn: 3.2,
+          homing: Math.abs(lane) <= 0.75,
+          turn: 3.4,
+          life: 2.45,
+          shape: "bubble",
+          waveAmp: 70,
+          waveRate: 5.4,
         });
       }
       break;
     }
     case "jade": {
-      for (const { lane, x } of lanes(1 + spread, 19)) {
+      emit({
+        speed: 570,
+        r: 6.6,
+        damage: 0.96,
+        color: accentColor,
+        homing: true,
+        turn: 7,
+        pierce: 1,
+        life: 2.35,
+        shape: "leaf",
+        waveAmp: 42,
+      });
+      for (const side of [-1, 1]) {
         emit({
-          x,
-          angle: -Math.PI / 2 + lane * 0.2,
-          speed: 535,
-          r: 5.8,
-          damage: 0.88,
-          color: lane % 2 ? accentColor : mainColor,
+          x: side * (18 + focusLane * 8),
+          angle: -Math.PI / 2 + side * (0.22 + focusLane * 0.04),
+          speed: 520,
+          r: 5.4,
+          damage: 0.68,
+          color: mainColor,
           homing: true,
-          turn: 6.5,
-          life: 2.4,
+          turn: 6.8,
+          life: 2.55,
+          shape: "leaf",
+          waveAmp: 92,
+          wavePhase: shotIndex + side,
         });
       }
       break;
     }
     case "volt": {
-      for (const { lane, x } of lanes(2 + spread, 11)) {
+      for (const { lane, x } of lanes(3 + spread + focusLane, 10)) {
         emit({
           x,
-          angle: -Math.PI / 2 + lane * 0.09,
-          speed: 760,
-          r: 4.2,
-          damage: 0.62,
-          color: lane % 2 ? "#ffd63f" : mainColor,
-          homing: Math.abs(lane) < 0.6,
-          turn: 5.4,
-          life: 1.55,
+          angle: -Math.PI / 2 + lane * 0.075,
+          speed: 790,
+          r: 4.4,
+          damage: 0.56,
+          color: Math.round(Math.abs(lane)) % 2 ? "#ffd63f" : mainColor,
+          homing: Math.abs(lane) < 0.7,
+          turn: 5.8,
+          life: 1.48,
+          shape: "bolt",
+          chainRadius: 74,
+          accel: 0.22,
         });
       }
       break;
     }
     case "frost": {
-      for (const { lane, x } of lanes(1 + spread, 18)) {
+      emit({
+        speed: 470,
+        r: 10,
+        damage: 1.14,
+        color: "#d8f7ff",
+        slow: true,
+        pierce: 1 + Math.floor(spread / 2),
+        life: 2.35,
+        shape: "crystal",
+      });
+      for (const { lane, x } of lanes(spread + focusLane, 20, pulseSide * 0.25)) {
         emit({
           x,
-          angle: -Math.PI / 2 + lane * 0.16,
-          speed: 485,
-          r: 7.4,
-          damage: 0.94,
-          color: lane % 2 ? accentColor : "#d8f7ff",
+          angle: -Math.PI / 2 + lane * 0.2,
+          speed: 540,
+          r: 5.8,
+          damage: 0.58,
+          color: accentColor,
           slow: true,
-          pierce: spread > 1 ? 1 : 0,
-          life: 2.15,
+          pierce: spread > 2 ? 1 : 0,
+          life: 2,
+          shape: "crystal",
         });
       }
       break;
     }
     case "shadow": {
-      for (const { lane, x } of lanes(2 + spread, 21)) {
+      for (const { lane, x } of lanes(2 + spread + focusLane, 22)) {
         emit({
-          x: x + Math.sin(state.time * 8 + lane) * 8,
-          angle: -Math.PI / 2 + lane * 0.24,
-          speed: 545,
+          x: x + Math.sin(state.time * 8 + lane) * 10,
+          y: -46 + Math.abs(lane) * 2,
+          angle: -Math.PI / 2 + lane * 0.25,
+          speed: 550,
           r: 6.4,
-          damage: 1.02,
-          color: lane % 2 ? accentColor : mainColor,
+          damage: 0.98,
+          color: Math.round(Math.abs(lane)) % 2 ? accentColor : mainColor,
           homing: true,
-          turn: 7.2,
+          turn: 7.8,
           life: 2.35,
+          shape: "blade",
+          waveAmp: 105,
+          waveRate: 8.4,
+          pierce: shotIndex % 4 === 0 ? 1 : 0,
         });
       }
       break;
     }
     case "metal": {
-      for (const { lane, x } of lanes(spread, 18)) {
+      for (const { lane, x } of lanes(Math.max(1, spread) + focusLane, 19)) {
         emit({
           x,
           angle: -Math.PI / 2 + lane * 0.08,
-          speed: 430,
-          r: 10.4,
-          damage: 1.42,
-          color: lane % 2 ? accentColor : mainColor,
+          speed: 420,
+          r: 11.2,
+          damage: 1.34,
+          color: Math.round(Math.abs(lane)) % 2 ? accentColor : mainColor,
           pierce: 1 + Math.floor(spread / 2),
-          life: 2.2,
+          life: 2.25,
+          shape: "hammer",
+          splashRadius: 56,
+          splashDamage: 0.16,
         });
+      }
+      if (absorbing) {
+        for (const side of [-1, 1]) {
+          emit({ x: side * 28, angle: -Math.PI / 2 + side * 0.16, speed: 500, r: 6.4, damage: 0.52, color: accentColor, pierce: 1, life: 1.8, shape: "gear" });
+        }
       }
       break;
     }
     case "bloom": {
-      for (const { lane, x } of lanes(2 + spread, 16)) {
+      for (const { lane, x } of lanes(3 + spread + focusLane, 15)) {
         emit({
           x,
-          angle: -Math.PI / 2 + lane * 0.21 + Math.sin(state.time * 5 + lane) * 0.05,
-          speed: 520,
-          r: 5.6,
-          damage: 0.76,
-          color: lane % 2 ? accentColor : mainColor,
+          angle: -Math.PI / 2 + lane * 0.23 + Math.sin(state.time * 5 + lane) * 0.055,
+          speed: 510,
+          r: 5.8,
+          damage: 0.7,
+          color: Math.round(Math.abs(lane)) % 2 ? accentColor : mainColor,
           homing: true,
-          turn: 5.8,
+          turn: 6,
           burn: true,
-          life: 2.3,
+          life: 2.45,
+          shape: "petal",
+          waveAmp: 76,
+          splashRadius: 62,
+          splashDamage: 0.12,
         });
       }
       break;
     }
     case "void": {
-      for (const { lane, x } of lanes(2 + spread, 22)) {
+      for (const { lane, x } of lanes(2 + spread + focusLane, 23)) {
         emit({
-          x: x + Math.sin(state.time * 6 + lane) * 11,
-          angle: -Math.PI / 2 + lane * 0.2,
-          speed: 560,
-          r: 7.2,
-          damage: 0.96,
-          color: lane % 2 ? accentColor : mainColor,
+          x: x + Math.sin(state.time * 6 + lane) * 12,
+          angle: -Math.PI / 2 + lane * 0.21,
+          speed: 545,
+          r: 7.6,
+          damage: 0.92,
+          color: Math.round(Math.abs(lane)) % 2 ? accentColor : mainColor,
           homing: true,
-          turn: 8.2,
+          turn: 8.6,
           pierce: spread > 2 ? 1 : 0,
-          life: 2.6,
+          life: 2.7,
+          shape: "void",
+          chainRadius: 60,
+          waveAmp: 62,
         });
       }
       break;
     }
     case "astral":
     default: {
-      for (const { lane, x } of lanes(1 + spread, 16)) {
+      for (const { lane, x } of lanes(1 + spread + focusLane, 16)) {
         emit({
           x,
-          angle: -Math.PI / 2 + lane * 0.14,
-          speed: 570,
-          r: lane === 0 ? 5.8 : 5,
-          damage: lane === 0 ? 1.02 : 0.78,
-          color: lane % 2 ? accentColor : mainColor,
+          angle: -Math.PI / 2 + lane * 0.15,
+          speed: 585,
+          r: Math.abs(lane) < 0.25 ? 6.2 : 5.2,
+          damage: Math.abs(lane) < 0.25 ? 1.04 : 0.78,
+          color: Math.round(Math.abs(lane)) % 2 ? accentColor : mainColor,
           homing: true,
-          turn: 5.6,
-          life: 2.25,
+          turn: 6,
+          life: 2.3,
+          shape: "star",
+          waveAmp: 38,
         });
+      }
+      if (shotIndex % 3 === 0) {
+        for (const side of [-1, 1]) {
+          emit({ x: side * 30, angle: -Math.PI / 2 + side * 0.32, speed: 520, r: 4.8, damage: 0.58, color: accentColor, homing: true, turn: 7.4, life: 2.2, shape: "star" });
+        }
       }
       break;
     }
@@ -2339,7 +2521,7 @@ function updatePlayer(dt) {
   state.upgrades.shotTimer -= dt;
   if (state.upgrades.shotTimer <= 0) {
     firePlayerShots();
-    state.upgrades.shotTimer = state.upgrades.shotCooldown;
+    state.upgrades.shotTimer = state.upgrades.shotCooldown * (input.absorbing ? 0.82 : 1);
   }
 }
 
@@ -2380,7 +2562,7 @@ function defeatEnemy(enemy) {
   state.score += enemy.score;
   state.kills += 1;
   state.stageKills += enemy.kind === "boss" ? 5 : enemy.kind === "elite" ? 3 : 1;
-  state.ultimateCharge = clamp(state.ultimateCharge + (enemy.kind === "boss" ? 100 : enemy.kind === "elite" ? 24 : 8), 0, 100);
+  addUltimateCharge(enemy.kind === "boss" ? 100 : enemy.kind === "elite" ? 24 : 8);
   state.player.charge = clamp(state.player.charge + 2, 0, state.player.maxCharge);
   addParticles(enemy.x, enemy.y, enemy.type === "brute" ? 30 : 18, enemy.color, 190);
   if (state.currentDragon?.id === "jade") {
@@ -2484,12 +2666,12 @@ function updateBullets(dt) {
         const tangentX = -dy / distance;
         const tangentY = dx / distance;
         const vortexSide = bullet.vortexSide || (Math.random() < 0.5 ? -1 : 1);
-        const vortexGrip = clamp(1 - hit.mouthDistance / Math.max(118, hit.maw.width * 2.9), 0.34, 1);
-        const mouthSnap = 1 - smoothstep(30 + bullet.r, Math.max(104, hit.maw.width * 2.15), hit.mouthDistance);
-        const pull = (1780 + state.wave * 34) * (0.82 + hit.pull * 0.98) * (1 + vortexGrip * 0.78 + mouthSnap * 1.42);
-        const swirl = vortexSide * (410 + hit.progress * 280 + hit.pull * 260) * vortexGrip * (1 - mouthSnap * 0.36);
+        const vortexGrip = clamp(1 - hit.mouthDistance / Math.max(152, hit.maw.width * 3.35), 0.46, 1);
+        const mouthSnap = 1 - smoothstep(42 + bullet.r, Math.max(136, hit.maw.width * 2.7), hit.mouthDistance);
+        const pull = (2450 + state.wave * 48) * (0.9 + hit.pull * 1.12) * (1 + vortexGrip * 1.05 + mouthSnap * 1.82);
+        const swirl = vortexSide * (560 + hit.progress * 360 + hit.pull * 330) * vortexGrip * (1 - mouthSnap * 0.28);
         bullet.vortexSide = vortexSide;
-        bullet.absorbT = clamp(Math.max(bullet.absorbT || 0, 0.34) + dt * (9 + hit.pull * 10 + vortexGrip * 4), 0, 1);
+        bullet.absorbT = clamp(Math.max(bullet.absorbT || 0, 0.46) + dt * (13 + hit.pull * 14 + vortexGrip * 6), 0, 1);
         bullet.absorbProgress = hit.progress;
         bullet.absorbWidth = hit.halfWidth;
         bullet.absorbMouthDistance = hit.mouthDistance;
@@ -2498,10 +2680,10 @@ function updateBullets(dt) {
         bullet.vy += (dy / distance) * pull * dt;
         bullet.vx += tangentX * swirl * dt;
         bullet.vy += tangentY * swirl * dt;
-        bullet.vx *= 1 - dt * 0.18;
-        bullet.vy *= 1 - dt * 0.18;
+        bullet.vx *= 1 - dt * 0.1;
+        bullet.vy *= 1 - dt * 0.1;
         const speed = Math.hypot(bullet.vx, bullet.vy);
-        const maxSwallowSpeed = 1120 + hit.pull * 620 + mouthSnap * 880;
+        const maxSwallowSpeed = 1520 + hit.pull * 820 + mouthSnap * 1120;
         if (speed > maxSwallowSpeed) {
           const scale = maxSwallowSpeed / speed;
           bullet.vx *= scale;
@@ -2509,7 +2691,7 @@ function updateBullets(dt) {
         }
         bullet.spin += dt * vortexSide * (18 + hit.pull * 24 + mouthSnap * 18);
 
-        if (hit.mouthDistance < 34 + bullet.r + mouthSnap * 14) {
+        if (hit.mouthDistance < 48 + bullet.r * 1.4 + mouthSnap * 22) {
           storeBullet(bullet);
           state.bullets.splice(i, 1);
           continue;
@@ -2522,14 +2704,14 @@ function updateBullets(dt) {
 
     if (input.absorbing) {
       const hit = getMawHit(bullet);
-      if (hit && hit.mouthDistance < 34 + bullet.r + (bullet.absorbSnap || 0) * 14) {
+      if (hit && hit.mouthDistance < 48 + bullet.r * 1.4 + (bullet.absorbSnap || 0) * 22) {
         storeBullet(bullet);
         state.bullets.splice(i, 1);
         continue;
       }
     }
 
-    if (dist2(bullet.x, bullet.y, player.x, player.y) < (bullet.r + player.r * 0.52) ** 2) {
+    if (bulletTouchesPlayerBody(bullet, player)) {
       if (state.absorbDemo && bullet.demo) {
         state.bullets.splice(i, 1);
         continue;
@@ -2569,8 +2751,23 @@ function updateShots(dt) {
       }
     }
 
+    if (shot.accel) {
+      const accel = 1 + shot.accel * dt;
+      shot.vx *= accel;
+      shot.vy *= accel;
+    }
+
     shot.x += shot.vx * dt;
     shot.y += shot.vy * dt;
+
+    if (shot.waveAmp) {
+      const speed = Math.hypot(shot.vx, shot.vy) || 1;
+      const nx = -shot.vy / speed;
+      const ny = shot.vx / speed;
+      const nudge = Math.sin(state.time * (shot.waveRate || 7) + (shot.wavePhase || 0)) * shot.waveAmp * dt;
+      shot.x += nx * nudge;
+      shot.y += ny * nudge;
+    }
 
     let used = false;
     for (const enemy of state.enemies) {
@@ -2581,13 +2778,24 @@ function updateShots(dt) {
         if (shot.slow || slowPower) {
           enemy.shoot += (shot.slow ? 0.45 : 0) + slowPower * 0.14;
         }
-        if (shot.burn || splashBurn) {
-          const splashRadius = shot.burn ? 92 : 58 + splashBurn * 11;
-          const splashDamage = shot.burn ? 0.28 : 0.1 + splashBurn * 0.045;
+        if (shot.burn || splashBurn || shot.splashRadius) {
+          const splashRadius = shot.splashRadius || (shot.burn ? 92 : 58 + splashBurn * 11);
+          const splashDamage = shot.splashDamage || (shot.burn ? 0.28 : 0.1 + splashBurn * 0.045);
           addParticles(enemy.x, enemy.y, 10, "#ffd166", 110);
           for (const nearby of state.enemies) {
             if (nearby !== enemy && dist2(enemy.x, enemy.y, nearby.x, nearby.y) < splashRadius ** 2) {
               nearby.hp -= shot.damage * splashDamage;
+            }
+          }
+        }
+        if (shot.chainRadius) {
+          let chains = 0;
+          for (const nearby of state.enemies) {
+            if (nearby !== enemy && chains < 3 && dist2(enemy.x, enemy.y, nearby.x, nearby.y) < shot.chainRadius ** 2) {
+              nearby.hp -= shot.damage * 0.34;
+              nearby.shoot += 0.08;
+              chains += 1;
+              addParticles(nearby.x, nearby.y, 5, shot.color, 130);
             }
           }
         }
@@ -2741,6 +2949,7 @@ function update(dt) {
   updateBreaths(dt);
   updateHazards(dt);
   updateParticles(dt);
+  tryActivateUltimate();
   updateHud();
 }
 
@@ -2976,6 +3185,8 @@ function drawDragon(player) {
   const dragon = state.currentDragon || selectedDragon();
   const image = getBattleDragonImage(dragon);
   const [mainColor, accentColor, darkColor] = dragon.colors;
+  const form = state.currentForm || selectedForm(dragon);
+  const skin = formSkin(form);
   const pose = BATTLE_POSES[dragon.id] || BATTLE_POSES.astral;
   const flicker = player.invulnerable > 0 && Math.floor(player.invulnerable * 18) % 2 === 0;
   const absorbTime = player.absorbTime || 0;
@@ -2989,7 +3200,7 @@ function drawDragon(player) {
   ctx.save();
   if (flicker) ctx.globalAlpha = 0.52;
   ctx.translate(player.x, player.y);
-  drawBattleSwallowField(mouthY, mainColor, accentColor, chargeRatio, absorbTension, absorbTime);
+  drawBattleSwallowField(mouthY, skin.main || mainColor, skin.accent || accentColor, chargeRatio, absorbTension, absorbTime);
 
   ctx.save();
   ctx.globalAlpha = 0.3 + chargeRatio * 0.1;
@@ -3018,6 +3229,7 @@ function drawDragon(player) {
   ctx.save();
   ctx.rotate(flightTilt + Math.sin(state.time * 2.2 + pose.phase) * 0.025 + releasePulse * 0.05);
   ctx.translate(0, Math.sin(state.time * 5 + pose.phase) * 2 - releasePulse * 4);
+  drawFormSkinAura(skin, pose, chargeRatio, absorbTension, releasePulse);
 
   if (image.complete && image.naturalWidth > 0) {
     drawAnimatedDragonImage(image, pose, mouthY, mainColor, accentColor, darkColor, {
@@ -3025,12 +3237,13 @@ function drawDragon(player) {
       chargeRatio,
       flightTilt,
       releasePulse,
+      skin,
     });
   } else {
-    drawLoadingDragonSilhouette(mainColor, accentColor, darkColor, absorbTension, chargeRatio);
+    drawLoadingDragonSilhouette(skin.main || mainColor, skin.accent || accentColor, darkColor, absorbTension, chargeRatio);
   }
 
-  drawBattleStoredEnergy(player, chargeRatio, mainColor, accentColor);
+  drawBattleStoredEnergy(player, chargeRatio, skin.main || mainColor, skin.accent || accentColor);
   ctx.restore();
   ctx.restore();
   ctx.globalAlpha = 1;
@@ -3132,6 +3345,53 @@ function drawBattleSwallowField(mouthY, mainColor, accentColor, chargeRatio, abs
   ctx.globalAlpha = 1;
 }
 
+function drawFormSkinAura(skin, pose, chargeRatio, absorbTension, releasePulse) {
+  const time = state.time + pose.phase;
+  const pulse = 1 + Math.sin(time * 5.2) * 0.08;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = 0.24 + chargeRatio * 0.12 + absorbTension * 0.12;
+  ctx.strokeStyle = colorAlpha(skin.accent, 0.62);
+  ctx.lineWidth = 1.4 + absorbTension * 1.2;
+
+  if (skin.aura === "vortex") {
+    for (let i = 0; i < 3; i += 1) {
+      const t = (time * 0.75 + i / 3) % 1;
+      ctx.globalAlpha = (1 - t) * (0.2 + absorbTension * 0.22);
+      ctx.beginPath();
+      ctx.ellipse(0, -4, 34 + t * 42, 62 + t * 28, time * 1.4 + i, 0, TAU);
+      ctx.stroke();
+    }
+  } else if (skin.aura === "wind") {
+    for (let i = -2; i <= 2; i += 1) {
+      ctx.globalAlpha = 0.16 + Math.abs(i) * 0.025;
+      ctx.beginPath();
+      ctx.moveTo(i * 15 + Math.sin(time * 5 + i) * 8, 50);
+      ctx.quadraticCurveTo(i * 20 + Math.sin(time * 8 + i) * 18, -6, i * 13 + Math.cos(time * 6 + i) * 12, -70);
+      ctx.stroke();
+    }
+  } else if (skin.aura === "flare") {
+    for (let i = 0; i < 8; i += 1) {
+      const angle = time * 1.8 + (i / 8) * TAU;
+      const radius = 46 + Math.sin(time * 4 + i) * 7;
+      ctx.globalAlpha = 0.16 + releasePulse * 0.14;
+      ctx.fillStyle = i % 2 ? skin.accent : skin.main;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle) * radius, Math.sin(angle) * radius * 1.2);
+      ctx.lineTo(Math.cos(angle + 0.18) * (radius + 18), Math.sin(angle + 0.18) * (radius + 24));
+      ctx.lineTo(Math.cos(angle - 0.18) * (radius + 12), Math.sin(angle - 0.18) * (radius + 16));
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else {
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 58 * pulse, 78 * pulse, 0, 0, TAU);
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
 function drawAnimatedDragonImage(image, pose, mouthY, mainColor, accentColor, darkColor, motion) {
   const frame = getImageAlphaFrame(image);
   const spriteW = frame.w * pose.scale * pose.body;
@@ -3168,6 +3428,7 @@ function drawAnimatedDragonImage(image, pose, mouthY, mainColor, accentColor, da
   drawWingBeatLayer(image, frame, drawX, drawY, spriteW, spriteH, time, wingPulse, mainColor, motion);
   drawTailLayer(image, frame, drawX, drawY, spriteW, spriteH, time, motion);
   drawCentralBodyLayer(image, frame, drawX, drawY, spriteW, spriteH, time, mainColor, accentColor, motion);
+  drawFormSkinOverlay(drawX, drawY, spriteW, spriteH, motion);
 
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
@@ -3183,6 +3444,20 @@ function drawAnimatedDragonImage(image, pose, mouthY, mainColor, accentColor, da
   ctx.restore();
 
   drawMouthEnergyLayer(mouthY, spriteW, spriteH, pose, mainColor, accentColor, darkColor, motion);
+}
+
+function drawFormSkinOverlay(drawX, drawY, spriteW, spriteH, motion) {
+  const skin = motion.skin || formSkin();
+  ctx.save();
+  ctx.globalCompositeOperation = "source-atop";
+  ctx.globalAlpha = skin.aura === "balanced" ? 0.08 : 0.18 + motion.absorbTension * 0.08;
+  const gradient = ctx.createLinearGradient(drawX, drawY, drawX + spriteW, drawY + spriteH);
+  gradient.addColorStop(0, colorAlpha(skin.main, 0.15));
+  gradient.addColorStop(0.48, colorAlpha(skin.accent, 0.32));
+  gradient.addColorStop(1, colorAlpha(skin.main, 0.08));
+  ctx.fillStyle = gradient;
+  ctx.fillRect(drawX, drawY, spriteW, spriteH);
+  ctx.restore();
 }
 
 function drawSpriteRegion(image, source, dest, transform = {}) {
@@ -3469,24 +3744,139 @@ function drawEnemies() {
 
 function drawProjectiles() {
   for (const shot of state.shots) {
+    const shape = shot.shape || "star";
     ctx.save();
     ctx.translate(shot.x, shot.y);
     ctx.rotate(Math.atan2(shot.vy, shot.vx) + Math.PI / 2);
     ctx.shadowColor = shot.color;
-    ctx.shadowBlur = shot.homing ? 18 : 12;
+    ctx.shadowBlur = shot.homing || shot.chainRadius ? 20 : 12;
     ctx.fillStyle = shot.color;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, shot.r * 0.72, shot.homing ? shot.r * 1.35 : shot.r * 1.9, 0, 0, TAU);
-    ctx.fill();
-    if (shot.homing) {
-      ctx.globalAlpha = 0.35;
+
+    if (shape === "fire") {
       ctx.beginPath();
-      ctx.moveTo(0, shot.r * 0.8);
-      ctx.lineTo(-shot.r * 0.62, shot.r * 3.2);
-      ctx.lineTo(shot.r * 0.62, shot.r * 3.2);
+      ctx.moveTo(0, -shot.r * 2.35);
+      ctx.bezierCurveTo(shot.r * 1.25, -shot.r * 0.8, shot.r * 0.95, shot.r * 1.6, 0, shot.r * 1.85);
+      ctx.bezierCurveTo(-shot.r * 1.1, shot.r * 0.8, -shot.r * 1.35, -shot.r * 0.9, 0, -shot.r * 2.35);
+      ctx.fill();
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = "#fff4c5";
+      ctx.beginPath();
+      ctx.ellipse(0, -shot.r * 0.15, shot.r * 0.34, shot.r * 0.9, 0, 0, TAU);
+      ctx.fill();
+    } else if (shape === "bubble") {
+      const bubble = ctx.createRadialGradient(-shot.r * 0.32, -shot.r * 0.4, 1, 0, 0, shot.r * 1.45);
+      bubble.addColorStop(0, colorAlpha("#ffffff", 0.86));
+      bubble.addColorStop(0.42, colorAlpha(shot.color, 0.58));
+      bubble.addColorStop(1, colorAlpha(shot.color, 0.12));
+      ctx.fillStyle = bubble;
+      ctx.beginPath();
+      ctx.arc(0, 0, shot.r * 1.15, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = colorAlpha("#ffffff", 0.56);
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    } else if (shape === "leaf" || shape === "blade") {
+      ctx.beginPath();
+      ctx.moveTo(0, -shot.r * 2.3);
+      ctx.quadraticCurveTo(shot.r * 1.25, -shot.r * 0.2, 0, shot.r * 2);
+      ctx.quadraticCurveTo(-shot.r * 1.1, -shot.r * 0.2, 0, -shot.r * 2.3);
+      ctx.fill();
+      ctx.strokeStyle = colorAlpha("#ffffff", 0.45);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, -shot.r * 1.7);
+      ctx.lineTo(0, shot.r * 1.45);
+      ctx.stroke();
+    } else if (shape === "bolt") {
+      ctx.beginPath();
+      ctx.moveTo(-shot.r * 0.45, -shot.r * 2.4);
+      ctx.lineTo(shot.r * 0.82, -shot.r * 0.45);
+      ctx.lineTo(shot.r * 0.12, -shot.r * 0.35);
+      ctx.lineTo(shot.r * 0.62, shot.r * 2.35);
+      ctx.lineTo(-shot.r * 0.86, shot.r * 0.3);
+      ctx.lineTo(-shot.r * 0.1, shot.r * 0.15);
       ctx.closePath();
       ctx.fill();
+    } else if (shape === "crystal") {
+      ctx.beginPath();
+      ctx.moveTo(0, -shot.r * 2.1);
+      ctx.lineTo(shot.r * 1.05, -shot.r * 0.45);
+      ctx.lineTo(shot.r * 0.72, shot.r * 1.55);
+      ctx.lineTo(0, shot.r * 2.15);
+      ctx.lineTo(-shot.r * 0.72, shot.r * 1.55);
+      ctx.lineTo(-shot.r * 1.05, -shot.r * 0.45);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = colorAlpha("#ffffff", 0.5);
+      ctx.stroke();
+    } else if (shape === "hammer") {
+      ctx.fillRect(-shot.r * 1.25, -shot.r * 1.45, shot.r * 2.5, shot.r * 1.18);
+      ctx.fillRect(-shot.r * 0.32, -shot.r * 0.3, shot.r * 0.64, shot.r * 2.25);
+      ctx.strokeStyle = colorAlpha("#ffffff", 0.38);
+      ctx.strokeRect(-shot.r * 1.25, -shot.r * 1.45, shot.r * 2.5, shot.r * 1.18);
+    } else if (shape === "gear") {
+      ctx.beginPath();
+      for (let i = 0; i < 10; i += 1) {
+        const angle = (i / 10) * TAU;
+        const radius = i % 2 ? shot.r * 1.05 : shot.r * 1.45;
+        const x = Math.cos(angle) * radius;
+        const y = Math.sin(angle) * radius;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 0.45;
+      ctx.fillStyle = "#05070d";
+      ctx.beginPath();
+      ctx.arc(0, 0, shot.r * 0.42, 0, TAU);
+      ctx.fill();
+    } else if (shape === "petal") {
+      ctx.beginPath();
+      for (let i = 0; i < 5; i += 1) {
+        const angle = (i / 5) * TAU;
+        ctx.ellipse(Math.cos(angle) * shot.r * 0.42, Math.sin(angle) * shot.r * 0.42, shot.r * 0.48, shot.r * 1.05, angle, 0, TAU);
+      }
+      ctx.fill();
+    } else if (shape === "void") {
+      ctx.beginPath();
+      ctx.arc(0, 0, shot.r * 1.25, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 0.72;
+      ctx.fillStyle = "#05070d";
+      ctx.beginPath();
+      ctx.arc(shot.r * 0.28, -shot.r * 0.16, shot.r * 0.7, 0, TAU);
+      ctx.fill();
       ctx.globalAlpha = 1;
+      ctx.strokeStyle = colorAlpha(shot.color, 0.7);
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, shot.r * 1.45, state.time * 4, state.time * 4 + Math.PI * 1.4);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      for (let i = 0; i < 10; i += 1) {
+        const angle = -Math.PI / 2 + (i / 10) * TAU;
+        const radius = i % 2 === 0 ? shot.r * 1.5 : shot.r * 0.62;
+        const x = Math.cos(angle) * radius;
+        const y = Math.sin(angle) * radius;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    if (shot.homing || shot.chainRadius) {
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = shot.chainRadius ? 0.5 : 0.3;
+      ctx.fillStyle = shot.color;
+      ctx.beginPath();
+      ctx.moveTo(0, shot.r * 0.9);
+      ctx.lineTo(-shot.r * 0.62, shot.r * 3.4);
+      ctx.lineTo(shot.r * 0.62, shot.r * 3.4);
+      ctx.closePath();
+      ctx.fill();
     }
     ctx.restore();
   }

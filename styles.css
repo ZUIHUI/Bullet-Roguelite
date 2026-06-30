@@ -592,6 +592,7 @@ h2 {
 }
 
 .dragon-preview {
+  position: relative;
   display: grid;
   width: clamp(190px, 55vw, 250px);
   height: clamp(170px, 43svh, 235px);
@@ -605,6 +606,57 @@ h2 {
   filter: drop-shadow(0 26px 34px rgba(0, 0, 0, 0.38));
 }
 
+.skin-ring {
+  position: absolute;
+  inset: 14%;
+  border: 1px solid color-mix(in srgb, var(--skin-accent, var(--gold)) 68%, transparent);
+  border-radius: 50%;
+  box-shadow:
+    0 0 22px color-mix(in srgb, var(--skin-main, var(--aqua)) 42%, transparent),
+    inset 0 0 28px color-mix(in srgb, var(--skin-accent, var(--gold)) 24%, transparent);
+  animation: skinRingPulse 2.8s ease-in-out infinite;
+}
+
+.skin-label {
+  position: absolute;
+  z-index: 2;
+  top: 9px;
+  left: 50%;
+  translate: -50% 0;
+  padding: 4px 9px;
+  border: 1px solid color-mix(in srgb, var(--skin-accent, var(--gold)) 50%, transparent);
+  border-radius: 999px;
+  color: #06100f;
+  background: linear-gradient(135deg, var(--skin-main, var(--aqua)), var(--skin-accent, var(--gold)));
+  font-size: 0.68rem;
+  font-weight: 950;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+}
+
+.dragon-preview::before,
+.dragon-preview::after {
+  content: "";
+  position: absolute;
+  inset: 18%;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.dragon-preview::before {
+  background:
+    radial-gradient(circle at 50% 34%, color-mix(in srgb, var(--skin-accent, var(--gold)) 36%, transparent), transparent 42%),
+    conic-gradient(from 0deg, transparent, color-mix(in srgb, var(--skin-main, var(--aqua)) 28%, transparent), transparent 42%);
+  mix-blend-mode: screen;
+  animation: skinAuraSpin 7s linear infinite;
+}
+
+.dragon-preview::after {
+  inset: 28%;
+  border: 1px dashed color-mix(in srgb, var(--skin-main, var(--aqua)) 46%, transparent);
+  animation: skinAuraSpin 5.4s linear infinite reverse;
+}
+
 .art-sprite {
   display: block;
   width: 100%;
@@ -616,8 +668,44 @@ h2 {
   height: min(245px, 68vw);
   object-fit: contain;
   filter:
+    var(--skin-filter, saturate(1))
     drop-shadow(0 20px 22px rgba(0, 0, 0, 0.34))
-    drop-shadow(0 0 22px rgba(66, 239, 210, 0.22));
+    drop-shadow(0 0 22px color-mix(in srgb, var(--skin-main, var(--aqua)) 30%, transparent));
+  z-index: 1;
+}
+
+.skin-devour::before {
+  animation-duration: 4.8s;
+}
+
+.skin-swift::before,
+.skin-swift::after {
+  border-radius: 42% 58% 46% 54%;
+  animation-duration: 3.2s;
+}
+
+.skin-flare::before {
+  background:
+    radial-gradient(circle at 50% 70%, color-mix(in srgb, var(--skin-accent, var(--gold)) 38%, transparent), transparent 40%),
+    conic-gradient(from 22deg, transparent, color-mix(in srgb, var(--skin-main, var(--red)) 38%, transparent), transparent 32%);
+}
+
+@keyframes skinRingPulse {
+  0%, 100% {
+    scale: 0.96;
+    opacity: 0.64;
+  }
+
+  50% {
+    scale: 1.05;
+    opacity: 1;
+  }
+}
+
+@keyframes skinAuraSpin {
+  to {
+    rotate: 360deg;
+  }
 }
 
 .featured-dragon h2 {
@@ -703,6 +791,17 @@ h2 {
   text-align: left;
 }
 
+.form-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--skin-main, var(--aqua)), var(--skin-accent, var(--gold)));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--skin-main, var(--aqua)) 48%, transparent);
+  vertical-align: 1px;
+}
+
 .form-card span,
 .form-card em {
   color: var(--muted);
@@ -720,7 +819,8 @@ h2 {
 .form-card.is-selected {
   border-color: rgba(255, 209, 102, 0.76);
   background:
-    radial-gradient(circle at 80% 12%, rgba(255, 209, 102, 0.2), transparent 36%),
+    radial-gradient(circle at 80% 12%, color-mix(in srgb, var(--skin-accent, var(--gold)) 28%, transparent), transparent 36%),
+    linear-gradient(135deg, color-mix(in srgb, var(--skin-main, var(--aqua)) 12%, transparent), transparent),
     rgba(255, 255, 255, 0.08);
 }
 
