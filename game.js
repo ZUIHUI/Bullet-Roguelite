@@ -66,7 +66,7 @@ const SAVE_KEY = "starSwallowDragonSave.v1";
 const DEVICE_ID_KEY = "starSwallowDragonDeviceId.v1";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "players";
-const ASSET_VERSION = "37";
+const ASSET_VERSION = "38";
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDxQqZWabxFJ0RWc5Xr3bVjBj1QctS4hGE",
   authDomain: "swallow-5407f.firebaseapp.com",
@@ -1393,6 +1393,7 @@ const state = {
   shots: [],
   hazards: [],
   particles: [],
+  swallowBursts: [],
   breaths: [],
   currentDragon: null,
   currentForm: null,
@@ -1480,6 +1481,7 @@ function resetRun() {
   state.shots = [];
   state.hazards = [];
   state.particles = [];
+  state.swallowBursts = [];
   state.breaths = [];
   const stats = activeDragonStats();
   state.upgrades = {
@@ -1637,6 +1639,16 @@ function addParticles(x, y, amount, color, speed = 120) {
   }
 }
 
+function addSwallowBurst(x, y, color) {
+  state.swallowBursts.push({
+    x,
+    y,
+    color,
+    life: 0.18,
+    maxLife: 0.18,
+  });
+}
+
 function getMawZone() {
   const player = state.player;
   const length = state.upgrades.swallowLength;
@@ -1665,7 +1677,7 @@ function getMawHit(bullet) {
     progress,
     lateral,
     halfWidth,
-    pull: clamp(1 - ahead / maw.length, 0.18, 1),
+    pull: clamp(1 - ahead / maw.length, 0.36, 1),
     mouthDistance,
   };
 }
@@ -1687,7 +1699,9 @@ function storeBullet(bullet) {
   player.charge = clamp(player.charge + bullet.power * 1.35 * absorbBonus, 0, player.maxCharge);
   state.ultimateCharge = clamp(state.ultimateCharge + bullet.power * 0.85 * absorbBonus, 0, 100);
   state.score += 24;
-  addParticles(bullet.x, bullet.y, 8, bullet.color, 150);
+  addParticles(bullet.x, bullet.y, 12, bullet.color, 230);
+  addSwallowBurst(player.x, player.y - 48, bullet.color);
+  state.shake = Math.max(state.shake, 0.04);
 
   if (player.charge >= player.maxCharge) {
     ui.absorbButton.classList.add("is-ready");
@@ -2261,6 +2275,7 @@ function updateBullets(dt) {
     const bullet = state.bullets[i];
     bullet.spin += dt * 5;
     bullet.absorbT = Math.max(0, (bullet.absorbT || 0) - dt * 2.2);
+    bullet.absorbSnap = Math.max(0, (bullet.absorbSnap || 0) - dt * 3);
 
     if (input.absorbing) {
       const hit = getMawHit(bullet);
@@ -2271,23 +2286,32 @@ function updateBullets(dt) {
         const tangentX = -dy / distance;
         const tangentY = dx / distance;
         const vortexSide = bullet.vortexSide || (Math.random() < 0.5 ? -1 : 1);
-        const vortexGrip = clamp(1 - hit.mouthDistance / Math.max(80, hit.maw.width * 2.3), 0.18, 1);
-        const pull = (760 + state.wave * 18) * hit.pull * (1 + vortexGrip * 0.22);
-        const swirl = vortexSide * (210 + hit.progress * 180 + hit.pull * 160) * vortexGrip;
+        const vortexGrip = clamp(1 - hit.mouthDistance / Math.max(96, hit.maw.width * 2.8), 0.26, 1);
+        const mouthSnap = 1 - smoothstep(22 + bullet.r, Math.max(86, hit.maw.width * 2.1), hit.mouthDistance);
+        const pull = (1320 + state.wave * 28) * (0.72 + hit.pull * 0.88) * (1 + vortexGrip * 0.62 + mouthSnap * 1.2);
+        const swirl = vortexSide * (340 + hit.progress * 240 + hit.pull * 230) * vortexGrip * (1 - mouthSnap * 0.28);
         bullet.vortexSide = vortexSide;
-        bullet.absorbT = clamp((bullet.absorbT || 0) + dt * (3 + hit.pull * 5), 0, 1);
+        bullet.absorbT = clamp(Math.max(bullet.absorbT || 0, 0.26) + dt * (7 + hit.pull * 8 + vortexGrip * 3), 0, 1);
         bullet.absorbProgress = hit.progress;
         bullet.absorbWidth = hit.halfWidth;
         bullet.absorbMouthDistance = hit.mouthDistance;
+        bullet.absorbSnap = mouthSnap;
         bullet.vx += (dx / distance) * pull * dt;
         bullet.vy += (dy / distance) * pull * dt;
         bullet.vx += tangentX * swirl * dt;
         bullet.vy += tangentY * swirl * dt;
-        bullet.vx *= 1 - dt * 0.42;
-        bullet.vy *= 1 - dt * 0.42;
-        bullet.spin += dt * vortexSide * (10 + hit.pull * 18);
+        bullet.vx *= 1 - dt * 0.18;
+        bullet.vy *= 1 - dt * 0.18;
+        const speed = Math.hypot(bullet.vx, bullet.vy);
+        const maxSwallowSpeed = 820 + hit.pull * 420 + mouthSnap * 620;
+        if (speed > maxSwallowSpeed) {
+          const scale = maxSwallowSpeed / speed;
+          bullet.vx *= scale;
+          bullet.vy *= scale;
+        }
+        bullet.spin += dt * vortexSide * (18 + hit.pull * 24 + mouthSnap * 18);
 
-        if (hit.mouthDistance < 18 + bullet.r) {
+        if (hit.mouthDistance < 26 + bullet.r + mouthSnap * 10) {
           storeBullet(bullet);
           state.bullets.splice(i, 1);
           continue;
@@ -2300,7 +2324,7 @@ function updateBullets(dt) {
 
     if (input.absorbing) {
       const hit = getMawHit(bullet);
-      if (hit && hit.mouthDistance < 18 + bullet.r) {
+      if (hit && hit.mouthDistance < 26 + bullet.r + (bullet.absorbSnap || 0) * 10) {
         storeBullet(bullet);
         state.bullets.splice(i, 1);
         continue;
@@ -2435,6 +2459,14 @@ function updateParticles(dt) {
     p.vy *= 1 - dt * 1.8;
     if (p.life <= 0) {
       state.particles.splice(i, 1);
+    }
+  }
+
+  for (let i = state.swallowBursts.length - 1; i >= 0; i -= 1) {
+    const burst = state.swallowBursts[i];
+    burst.life -= dt;
+    if (burst.life <= 0) {
+      state.swallowBursts.splice(i, 1);
     }
   }
 }
@@ -3222,6 +3254,7 @@ function drawProjectiles() {
   for (const bullet of state.bullets) {
     const absorbT = bullet.absorbT || 0;
     if (absorbT > 0.02) {
+      const pullT = Math.max(absorbT, (bullet.absorbSnap || 0) * 0.85);
       const maw = getMawZone();
       const dx = maw.x - bullet.x;
       const dy = maw.y - bullet.y;
@@ -3232,32 +3265,40 @@ function drawProjectiles() {
       const controlX = bullet.x + dx * 0.48 + -ny * side * (18 + absorbT * 24);
       const controlY = bullet.y + dy * 0.48 + nx * side * (18 + absorbT * 24);
       const tether = ctx.createLinearGradient(bullet.x, bullet.y, maw.x, maw.y);
-      tether.addColorStop(0, colorAlpha(bullet.color, 0.72 * absorbT));
-      tether.addColorStop(0.62, "rgba(66, 239, 210, 0.26)");
+      tether.addColorStop(0, colorAlpha(bullet.color, 0.9 * pullT));
+      tether.addColorStop(0.62, "rgba(66, 239, 210, 0.38)");
       tether.addColorStop(1, "rgba(255, 209, 102, 0)");
 
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       ctx.strokeStyle = tether;
-      ctx.lineWidth = 1.3 + absorbT * 2.2;
+      ctx.lineWidth = 2 + pullT * 3.4;
       ctx.beginPath();
       ctx.moveTo(bullet.x, bullet.y);
       ctx.quadraticCurveTo(controlX, controlY, maw.x, maw.y + 4);
       ctx.stroke();
 
-      ctx.globalAlpha = 0.22 + absorbT * 0.42;
+      ctx.globalAlpha = 0.36 + pullT * 0.5;
       ctx.strokeStyle = colorAlpha(bullet.color, 0.72);
-      ctx.lineWidth = 1.2;
+      ctx.lineWidth = 1.4 + pullT * 0.8;
       ctx.beginPath();
-      ctx.arc(bullet.x, bullet.y, bullet.r + 6 + Math.sin(state.time * 13 + bullet.spin) * 2, state.time * side * 4, state.time * side * 4 + Math.PI * 1.35);
+      ctx.arc(bullet.x, bullet.y, bullet.r + 8 + pullT * 7 + Math.sin(state.time * 16 + bullet.spin) * 2, state.time * side * 6, state.time * side * 6 + Math.PI * 1.55);
       ctx.stroke();
 
-      ctx.globalAlpha = absorbT * 0.55;
+      ctx.globalAlpha = pullT * 0.7;
       ctx.strokeStyle = colorAlpha(bullet.color, 0.76);
-      ctx.lineWidth = 2.2;
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(bullet.x - nx * (bullet.r + 8), bullet.y - ny * (bullet.r + 8));
-      ctx.lineTo(bullet.x - nx * (bullet.r + 26 + absorbT * 24), bullet.y - ny * (bullet.r + 26 + absorbT * 24));
+      ctx.lineTo(bullet.x - nx * (bullet.r + 34 + pullT * 38), bullet.y - ny * (bullet.r + 34 + pullT * 38));
+      ctx.stroke();
+
+      ctx.globalAlpha = pullT * 0.42;
+      ctx.strokeStyle = "rgba(255, 244, 197, 0.88)";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(bullet.x, bullet.y);
+      ctx.lineTo(bullet.x + nx * (12 + pullT * 18), bullet.y + ny * (12 + pullT * 18));
       ctx.stroke();
       ctx.restore();
     }
@@ -3266,14 +3307,14 @@ function drawProjectiles() {
     ctx.translate(bullet.x, bullet.y);
     ctx.rotate(bullet.spin);
     ctx.shadowColor = bullet.color;
-    ctx.shadowBlur = 14 + absorbT * 18;
-    ctx.scale(1 + absorbT * 0.14, 1 - absorbT * 0.08);
+    ctx.shadowBlur = 14 + absorbT * 26;
+    ctx.scale(1 + absorbT * 0.2, 1 - absorbT * 0.12);
     ctx.fillStyle = bullet.color;
     ctx.beginPath();
     ctx.arc(0, 0, bullet.r, 0, TAU);
     ctx.fill();
     ctx.strokeStyle = absorbT > 0.02 ? "rgba(255, 244, 197, 0.86)" : "rgba(255, 255, 255, 0.55)";
-    ctx.lineWidth = 1.2 + absorbT * 0.8;
+    ctx.lineWidth = 1.2 + absorbT * 1.2;
     ctx.beginPath();
     ctx.moveTo(-bullet.r * 0.65, 0);
     ctx.lineTo(bullet.r * 0.65, 0);
@@ -3359,6 +3400,31 @@ function drawParticles() {
   ctx.globalAlpha = 1;
 }
 
+function drawSwallowBursts() {
+  if (!state.swallowBursts.length) return;
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (const burst of state.swallowBursts) {
+    const t = 1 - clamp(burst.life / burst.maxLife, 0, 1);
+    const alpha = (1 - t) * 0.82;
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = colorAlpha(burst.color, 0.92);
+    ctx.lineWidth = 2.2 + t * 2.4;
+    ctx.beginPath();
+    ctx.arc(burst.x, burst.y, 12 + t * 34, 0, TAU);
+    ctx.stroke();
+
+    ctx.globalAlpha = alpha * 0.52;
+    ctx.fillStyle = colorAlpha("#fff4c5", 0.65);
+    ctx.beginPath();
+    ctx.arc(burst.x, burst.y, 6 + t * 14, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
 function draw() {
   ctx.save();
   if (state.shake > 0) {
@@ -3371,6 +3437,7 @@ function draw() {
   drawProjectiles();
   drawEnemies();
   drawParticles();
+  drawSwallowBursts();
   drawDragon(state.player);
 
   if (state.flash > 0) {
