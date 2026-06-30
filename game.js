@@ -69,7 +69,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "45";
+const ASSET_VERSION = "46";
 const DEFAULT_STAGE_BACKGROUND_ID = "dragon-ritual-arena";
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDxQqZWabxFJ0RWc5Xr3bVjBj1QctS4hGE",
@@ -280,12 +280,12 @@ const ARTIFACTS = [
 ];
 
 const EQUIPMENT_CRYSTALS = [
-  { id: "scale", name: "吞星鱗", stat: "生命", color: "#42efd2", unlock: 0 },
-  { id: "fang", name: "反吐牙", stat: "攻擊", color: "#ffd166", unlock: 1 },
-  { id: "wing", name: "迅翼核", stat: "速度", color: "#7aa7ff", unlock: 2 },
-  { id: "vortex", name: "漩渦晶", stat: "吞噬", color: "#9b7cff", unlock: 3 },
-  { id: "guard", name: "護心玉", stat: "防禦", color: "#77f5a6", unlock: 4 },
-  { id: "relic", name: "古龍印", stat: "大絕", color: "#ff8ab3", unlock: 5 },
+  { id: "scale", name: "吞星鱗", stat: "生命", effect: "生命上限", color: "#42efd2", unlock: 0 },
+  { id: "fang", name: "反吐牙", stat: "攻擊", effect: "普攻傷害", color: "#ffd166", unlock: 1 },
+  { id: "wing", name: "迅翼核", stat: "速度", effect: "移動與連射", color: "#7aa7ff", unlock: 2 },
+  { id: "vortex", name: "漩渦晶", stat: "吞噬", effect: "吞噬範圍", color: "#9b7cff", unlock: 3 },
+  { id: "guard", name: "護心玉", stat: "防禦", effect: "受傷減免", color: "#77f5a6", unlock: 4 },
+  { id: "relic", name: "古龍印", stat: "大絕", effect: "反吐與大絕", color: "#ff8ab3", unlock: 5 },
 ];
 
 const STAGES = [
@@ -977,7 +977,36 @@ function dragonStats(dragon = selectedDragon(), form = selectedForm(dragon)) {
 }
 
 function activeDragonStats() {
-  return dragonStats(state.currentDragon || selectedDragon(), state.currentForm || selectedForm());
+  const stats = dragonStats(state.currentDragon || selectedDragon(), state.currentForm || selectedForm());
+  const bonus = equipmentBonus();
+  return {
+    hp: stats.hp + bonus.hp,
+    attack: stats.attack * bonus.attackMult,
+    speed: stats.speed * bonus.speedMult,
+    swallow: stats.swallow * bonus.swallowMult,
+    counter: stats.counter * bonus.counterMult,
+  };
+}
+
+function equipmentTiers(level = state.meta?.equipmentLevel || 0) {
+  return EQUIPMENT_CRYSTALS.reduce((tiers, item) => {
+    tiers[item.id] = level >= item.unlock ? Math.floor((level - item.unlock) / EQUIPMENT_CRYSTALS.length) + 1 : 0;
+    return tiers;
+  }, {});
+}
+
+function equipmentBonus(tiers = equipmentTiers()) {
+  const totalTier = Object.values(tiers).reduce((sum, tier) => sum + tier, 0);
+  return {
+    hp: tiers.scale * 0.55,
+    attackMult: 1 + tiers.fang * 0.045 + tiers.relic * 0.015,
+    speedMult: 1 + tiers.wing * 0.025,
+    swallowMult: 1 + tiers.vortex * 0.05,
+    counterMult: 1 + tiers.relic * 0.05,
+    guard: tiers.guard,
+    charge: tiers.relic * 4,
+    power: totalTier * 28,
+  };
 }
 
 function applyBootParams(params) {
@@ -1006,7 +1035,7 @@ function dragonPower(dragon = selectedDragon()) {
       level * 18 +
       stars * 48 +
       artifactLevel * 30 +
-      state.meta.equipmentLevel * 22 +
+      equipmentBonus(equipmentTiers(state.meta.equipmentLevel)).power +
       state.meta.skillLevel * 24 +
       (stats.attack + stats.swallow + stats.counter) * 18 +
       (form.stars - 1) * 20,
@@ -1103,6 +1132,15 @@ function spriteMarkup(symbolId, className, label = "") {
 function dragonArtMarkup(dragon, className, label = "") {
   const alt = label ? `alt="${label}"` : `alt="" aria-hidden="true"`;
   return `<img class="${className} dragon-image" src="${dragonImagePath(dragon)}" ${alt} />`;
+}
+
+function artifactImagePath(artifact) {
+  return `./assets/artifacts/${artifact.id}.png?v=${ASSET_VERSION}`;
+}
+
+function artifactImageMarkup(artifact, className, label = "") {
+  const alt = label ? `alt="${label}"` : `alt="" aria-hidden="true"`;
+  return `<img class="${className} artifact-image" src="${artifactImagePath(artifact)}" ${alt} />`;
 }
 
 const dragonImageCache = new Map();
@@ -1325,7 +1363,7 @@ function renderEquipmentGrid() {
       <span class="hex-gem">${item.stat.slice(0, 1)}</span>
       <span>
         <strong>${item.name}</strong>
-        <em>${active ? `${item.stat} +${tier + 1}` : `+${item.unlock}解鎖`}</em>
+        <em>${active ? `${item.effect} T${tier}` : `+${item.unlock}解鎖`}</em>
       </span>
     `;
     card.addEventListener("click", () => {
@@ -1445,7 +1483,7 @@ function renderArtifactPanel() {
         data-artifact-id="${item.id}"
         style="--artifact-main:${pairedDragon.colors[0]};--artifact-accent:${pairedDragon.colors[1]}"
       >
-        ${spriteMarkup(`artifact-${item.id}`, "artifact-card-art", item.name)}
+        ${artifactImageMarkup(item, "artifact-card-art", item.name)}
         <span class="artifact-card-copy">
           <em>${pairedDragon.name}</em>
           <strong>${item.name}</strong>
@@ -1468,7 +1506,7 @@ function renderArtifactPanel() {
           <span>${dragon.name} 專屬神器</span>
           <strong>${artifact.name}</strong>
         </div>
-        ${spriteMarkup(`artifact-${artifact.id}`, "art-sprite artifact-art", artifact.name)}
+        ${artifactImageMarkup(artifact, "artifact-art", artifact.name)}
       </div>
       <p class="info-text">${dragon.ultimateName}：${dragon.ultimateDesc}</p>
       <p class="info-text">${artifactStatus}</p>
@@ -1643,9 +1681,10 @@ const state = {
 function createPlayer() {
   const dragon = state.currentDragon || selectedDragon();
   const stats = activeDragonStats();
+  const equipBonus = equipmentBonus();
   const meta = state.meta?.dragons?.[dragon.id] || { level: 1, stars: 1 };
-  const hpBonus = Math.floor(meta.level / 4) + meta.stars - 1 + Math.floor((state.meta?.equipmentLevel || 0) / 2);
-  const chargeBonus = (state.meta?.skillLevel || 0) * 5;
+  const hpBonus = Math.floor(meta.level / 4) + meta.stars - 1;
+  const chargeBonus = (state.meta?.skillLevel || 0) * 5 + equipBonus.charge;
   const maxHp = Math.max(3, Math.round(stats.hp + hpBonus));
   return {
     x: state.w / 2,
@@ -2749,12 +2788,17 @@ function damagePlayer(amount) {
     amount = Math.max(0.5, amount * 0.65);
   }
   const guardLevel = state.upgrades.runeGuard || 0;
+  const equipGuard = equipmentBonus().guard;
   if (guardLevel) {
     amount = Math.max(0.35, amount * (1 - guardLevel * 0.085));
     addParticles(player.x, player.y - 12, 5 + guardLevel, "#a678ff", 120);
   }
+  if (equipGuard) {
+    amount = Math.max(0.35, amount * (1 - equipGuard * 0.035));
+    addParticles(player.x, player.y - 4, 4 + equipGuard, "#77f5a6", 120);
+  }
   player.hp -= amount;
-  player.invulnerable = 1.05 + guardLevel * 0.08;
+  player.invulnerable = 1.05 + guardLevel * 0.08 + equipGuard * 0.03;
   state.shake = Math.max(state.shake, 9);
   addParticles(player.x, player.y, 18, "#ff6b6b", 170);
   if (player.hp <= 0) {

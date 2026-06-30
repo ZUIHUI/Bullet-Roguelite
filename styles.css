@@ -1069,7 +1069,11 @@ h2 {
   flex: 0 0 auto;
   width: 64px;
   height: 64px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(5, 7, 13, 0.74);
   filter: drop-shadow(0 10px 16px rgba(255, 209, 102, 0.22));
+  object-fit: cover;
 }
 
 .artifact-collection {
@@ -1091,7 +1095,11 @@ h2 {
 .artifact-card-art {
   width: 46px;
   height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(5, 7, 13, 0.72);
   filter: drop-shadow(0 0 16px color-mix(in srgb, var(--artifact-accent, var(--gold)) 28%, transparent));
+  object-fit: cover;
 }
 
 .artifact-card-copy {
