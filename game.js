@@ -69,7 +69,8 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "42";
+const ASSET_VERSION = "43";
+const DEFAULT_STAGE_BACKGROUND_ID = "dragon-ritual-arena";
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDxQqZWabxFJ0RWc5Xr3bVjBj1QctS4hGE",
   authDomain: "swallow-5407f.firebaseapp.com",
@@ -1072,6 +1073,7 @@ function getDragonImage(dragon) {
 }
 
 const battleDragonImageCache = new Map();
+const stageBackgroundImageCache = new Map();
 const imageAlphaFrameCache = new WeakMap();
 
 function battleDragonImagePath(dragon) {
@@ -1085,6 +1087,40 @@ function getBattleDragonImage(dragon) {
     battleDragonImageCache.set(dragon.id, image);
   }
   return battleDragonImageCache.get(dragon.id);
+}
+
+function stageBackgroundImagePath(stage) {
+  const imageId = stage?.backgroundId || DEFAULT_STAGE_BACKGROUND_ID;
+  return `./assets/stage-backgrounds/${imageId}.png?v=${ASSET_VERSION}`;
+}
+
+function getStageBackgroundImage(stage) {
+  const imageId = stage?.backgroundId || DEFAULT_STAGE_BACKGROUND_ID;
+  if (!stageBackgroundImageCache.has(imageId)) {
+    const image = new Image();
+    image.src = stageBackgroundImagePath(stage);
+    stageBackgroundImageCache.set(imageId, image);
+  }
+  return stageBackgroundImageCache.get(imageId);
+}
+
+function drawCoverImage(image, x, y, width, height) {
+  if (!image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) return false;
+  const sourceRatio = image.naturalWidth / image.naturalHeight;
+  const targetRatio = width / height;
+  let sx = 0;
+  let sy = 0;
+  let sw = image.naturalWidth;
+  let sh = image.naturalHeight;
+  if (sourceRatio > targetRatio) {
+    sw = image.naturalHeight * targetRatio;
+    sx = (image.naturalWidth - sw) / 2;
+  } else {
+    sh = image.naturalWidth / targetRatio;
+    sy = (image.naturalHeight - sh) / 2;
+  }
+  ctx.drawImage(image, sx, sy, sw, sh, x, y, width, height);
+  return true;
 }
 
 function getImageAlphaFrame(image) {
@@ -1139,6 +1175,9 @@ function preloadDragonImages() {
   for (const dragon of DRAGONS) {
     getDragonImage(dragon);
     getBattleDragonImage(dragon);
+  }
+  for (const stage of STAGES) {
+    getStageBackgroundImage(stage);
   }
 }
 
@@ -3019,6 +3058,31 @@ function drawBackground() {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, state.w, state.h);
 
+  const backgroundImage = getStageBackgroundImage(stage);
+  if (drawCoverImage(backgroundImage, 0, 0, state.w, state.h)) {
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    ctx.fillStyle = colorAlpha(bgColors[0], 0.28);
+    ctx.fillRect(0, 0, state.w, state.h);
+    ctx.globalCompositeOperation = "source-over";
+    const readability = ctx.createRadialGradient(state.w / 2, state.h * 0.54, 10, state.w / 2, state.h * 0.54, Math.max(state.w, state.h) * 0.68);
+    readability.addColorStop(0, "rgba(3, 6, 11, 0.5)");
+    readability.addColorStop(0.42, "rgba(3, 6, 11, 0.24)");
+    readability.addColorStop(1, "rgba(3, 6, 11, 0.68)");
+    ctx.fillStyle = readability;
+    ctx.fillRect(0, 0, state.w, state.h);
+    ctx.globalCompositeOperation = "lighter";
+    const themeWash = ctx.createLinearGradient(0, 0, state.w, state.h);
+    themeWash.addColorStop(0, colorAlpha(stage.theme, 0.08));
+    themeWash.addColorStop(0.5, colorAlpha(bgColors[1], 0.04));
+    themeWash.addColorStop(1, colorAlpha(stage.theme, 0.1));
+    ctx.fillStyle = themeWash;
+    ctx.fillRect(0, 0, state.w, state.h);
+    ctx.restore();
+  }
+
+  drawStageBackdrop(stage);
+
   ctx.save();
   ctx.globalAlpha = 0.12;
   for (let y = -120; y < state.h + 120; y += 92) {
@@ -3034,6 +3098,7 @@ function drawBackground() {
   ctx.restore();
 
   drawStageThemeProps(stage);
+  drawStageForeground(stage);
 
   for (const star of state.stars) {
     ctx.globalAlpha = 0.22 + star.z * 0.62;
@@ -3043,6 +3108,116 @@ function drawBackground() {
     ctx.fill();
   }
   ctx.globalAlpha = 1;
+}
+
+function drawStageBackdrop(stage) {
+  const theme = stage.theme || "#42efd2";
+  const accent = stage.bg?.[1] || "#111827";
+  const artId = stage.artId || "valley";
+  const chapterTension = clamp(stageIndex(stage) / Math.max(1, STAGES.length - 1), 0, 1);
+  const time = state.time;
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 4; i += 1) {
+    const y = state.h * (0.18 + i * 0.18) + Math.sin(time * 0.34 + i) * 24;
+    const drift = ((time * (7 + i * 2) + i * 97) % (state.w + 180)) - 90;
+    const ribbon = ctx.createLinearGradient(0, y - 42, state.w, y + 42);
+    ribbon.addColorStop(0, colorAlpha(theme, 0));
+    ribbon.addColorStop(0.28, colorAlpha(i % 2 ? theme : accent, 0.06 + chapterTension * 0.04));
+    ribbon.addColorStop(0.52, colorAlpha(theme, 0.13 + chapterTension * 0.08));
+    ribbon.addColorStop(0.78, colorAlpha(i % 2 ? accent : theme, 0.05));
+    ribbon.addColorStop(1, colorAlpha(theme, 0));
+    ctx.strokeStyle = ribbon;
+    ctx.lineWidth = 18 + i * 5;
+    ctx.beginPath();
+    ctx.moveTo(-80, y + Math.sin(time + i) * 18);
+    ctx.bezierCurveTo(
+      state.w * 0.26 + drift * 0.18,
+      y - 52,
+      state.w * 0.66 - drift * 0.14,
+      y + 54,
+      state.w + 80,
+      y + Math.cos(time * 0.7 + i) * 18,
+    );
+    ctx.stroke();
+  }
+
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = 0.28 + chapterTension * 0.08;
+  ctx.fillStyle = colorAlpha("#02050b", 0.72);
+  if (artId === "reef") {
+    for (let i = 0; i < 9; i += 1) {
+      const x = state.w * (i / 8);
+      const h = 52 + (i % 3) * 24;
+      ctx.beginPath();
+      ctx.moveTo(x - 46, state.h);
+      ctx.quadraticCurveTo(x - 18, state.h - h * 0.72, x, state.h - h);
+      ctx.quadraticCurveTo(x + 24, state.h - h * 0.52, x + 42, state.h);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (artId === "forge") {
+    for (let i = 0; i < 6; i += 1) {
+      const x = state.w * (0.08 + i * 0.18);
+      ctx.fillRect(x, state.h - 104 - (i % 2) * 20, 16, 104 + (i % 2) * 20);
+      ctx.fillRect(x - 28, state.h - 42 - i * 3, 72, 42 + i * 3);
+    }
+  } else if (artId === "spire") {
+    for (let i = 0; i < 7; i += 1) {
+      const x = state.w * (0.04 + i * 0.16);
+      const h = 160 + (i % 3) * 48;
+      ctx.beginPath();
+      ctx.moveTo(x - 26, state.h);
+      ctx.lineTo(x - 8, state.h - h);
+      ctx.lineTo(x, state.h - h - 38);
+      ctx.lineTo(x + 10, state.h - h);
+      ctx.lineTo(x + 28, state.h);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (artId === "rift") {
+    for (let i = 0; i < 8; i += 1) {
+      const x = state.w * (0.06 + i * 0.13);
+      const top = state.h * (0.34 + (i % 3) * 0.07);
+      ctx.beginPath();
+      ctx.moveTo(x - 34, top + 30);
+      ctx.lineTo(x + 12, top - 44);
+      ctx.lineTo(x + 44, top + 12);
+      ctx.lineTo(x + 4, top + 72);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else {
+    for (let i = 0; i < 6; i += 1) {
+      const x = state.w * (0.06 + i * 0.19);
+      const y = state.h * (0.62 + Math.sin(i) * 0.04);
+      ctx.beginPath();
+      ctx.moveTo(x - 76, y + 36);
+      ctx.quadraticCurveTo(x - 20, y - 26 - (i % 2) * 28, x + 62, y + 20);
+      ctx.lineTo(x + 84, state.h);
+      ctx.lineTo(x - 92, state.h);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = 0.12 + chapterTension * 0.05;
+  ctx.strokeStyle = theme;
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 7; i += 1) {
+    const x = (i * 93 + time * 16) % (state.w + 120) - 60;
+    const y = state.h * (0.18 + (i % 5) * 0.13);
+    ctx.beginPath();
+    ctx.moveTo(x - 18, y);
+    ctx.lineTo(x, y - 18);
+    ctx.lineTo(x + 18, y);
+    ctx.lineTo(x, y + 18);
+    ctx.closePath();
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function drawStageThemeProps(stage) {
@@ -3177,6 +3352,55 @@ function drawStageThemeProps(stage) {
     }
   }
 
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+function drawStageForeground(stage) {
+  const theme = stage.theme || "#42efd2";
+  const accent = stage.bg?.[1] || "#111827";
+  const artId = stage.artId || "valley";
+  const time = state.time;
+
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
+  const shade = ctx.createLinearGradient(0, state.h * 0.7, 0, state.h);
+  shade.addColorStop(0, "rgba(2, 5, 11, 0)");
+  shade.addColorStop(1, "rgba(2, 5, 11, 0.52)");
+  ctx.fillStyle = shade;
+  ctx.fillRect(0, state.h * 0.64, state.w, state.h * 0.36);
+
+  ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 2; i += 1) {
+    const y = state.h - 46 - i * 28;
+    ctx.globalAlpha = 0.12 - i * 0.035;
+    ctx.strokeStyle = i ? accent : theme;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    for (let x = 0; x <= state.w; x += 36) {
+      ctx.lineTo(x, y + Math.sin(time * 1.6 + x * 0.035 + i) * (artId === "reef" ? 9 : 5));
+    }
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 0.2;
+  ctx.fillStyle = theme;
+  for (let i = 0; i < 9; i += 1) {
+    const x = (i * 59 + time * (artId === "forge" ? 38 : 14)) % (state.w + 80) - 40;
+    const y = state.h - 22 - (i % 3) * 18;
+    if (artId === "forge") {
+      ctx.beginPath();
+      ctx.moveTo(x, y - 18);
+      ctx.lineTo(x + 12, y + 12);
+      ctx.lineTo(x - 12, y + 12);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.fillRect(x - 10, y, 20, 3);
+      ctx.fillRect(x - 2, y - 12, 4, 12);
+    }
+  }
   ctx.restore();
   ctx.globalAlpha = 1;
 }

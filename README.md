@@ -11,7 +11,7 @@
 - 關卡主線：第一章已有 `1-1` 到 `1-10` 共 10 個主線關卡，每關有章名、任務、開場敘事、通關推進文字與 Boss。
 - 關卡：每關至少 10 波，每波約 20 秒，小怪、菁英、Boss 的流程已接上；菁英/Boss 會施放預警雷射與範圍攻擊，通關會回到主畫面並給金幣與龍晶；不同關卡有敵人血量、彈速、危險招式節奏與背景色差異。
 - 養成：龍強化、升星、龍影召喚、六角晶體裝備、技能研究、掛機收益領取都有最小可玩版本。
-- 美術：`assets/dragons-clean/dragon-*.png` 是從設定集整理出的透明底 UI 龍圖，`assets/dragons/` 保留原整理版；`assets/battle-dragons/battle-*.png` 是各龍專屬上帝視角戰鬥 CG；`assets/dragon-sheets/` 保留原設定集參考圖，`assets/visuals.svg` 保留作為神器與關卡 sprite。
+- 美術：`assets/dragons-clean/dragon-*.png` 是從設定集整理出的透明底 UI 龍圖，`assets/dragons/` 保留原整理版；`assets/battle-dragons/battle-*.png` 是各龍專屬上帝視角戰鬥 CG；`assets/stage-backgrounds/` 是直式戰鬥場景背景；`assets/dragon-sheets/` 保留原設定集參考圖，`assets/visuals.svg` 保留作為神器與關卡 sprite。
 - 戰鬥表現：主畫面與龍卡使用設定集整理出的 PNG；關卡中的龍使用對應的 `battle-*.png` 俯視 CG，再由 canvas 做飛行擺尾、分層呼吸、張嘴吸收、吸入漩渦風場、子彈捲入拖尾、能量環與反吐爆發動畫。
 - 存檔：單人進度會寫入 Firebase Firestore `singlePlayerSaves/{gameId__deviceId__slot}`，並同步保留一份本機快取。
 
