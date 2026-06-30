@@ -14,9 +14,6 @@ const ui = {
   endOverlay: document.querySelector("#endOverlay"),
   startButton: document.querySelector("#startButton"),
   restartButton: document.querySelector("#restartButton"),
-  pauseButton: document.querySelector("#pauseButton"),
-  absorbButton: document.querySelector("#absorbButton"),
-  ultimateButton: document.querySelector("#ultimateButton"),
   upgradeChoices: document.querySelector("#upgradeChoices"),
   finalScore: document.querySelector("#finalScore"),
   endLabel: document.querySelector("#endLabel"),
@@ -69,7 +66,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "47";
+const ASSET_VERSION = "48";
 const DEFAULT_STAGE_BACKGROUND_ID = "dragon-ritual-arena";
 const STAGE_BACKGROUND_BY_ART = {
   valley: "star-valley-arena",
@@ -1630,6 +1627,7 @@ const input = {
   absorbing: false,
   keys: new Set(),
 };
+const KEYBOARD_ABSORB_ID = "keyboard";
 
 const state = {
   w: 0,
@@ -1773,7 +1771,6 @@ function resetRun() {
   ui.startOverlay.classList.remove("active");
   ui.endOverlay.classList.remove("active");
   ui.upgradeOverlay.classList.remove("active");
-  ui.absorbButton.classList.remove("is-active", "is-ready");
   showWaveBanner(`Wave 1 / ${state.currentStage.waves}`);
   renderSkillHud();
   updateHud();
@@ -1811,7 +1808,6 @@ function maintainAbsorbDemo(dt) {
   state.player.invulnerable = Math.max(state.player.invulnerable || 0, 0.2);
   state.player.absorbTime = Math.max(state.player.absorbTime || 0, 0.7);
   state.spawnTimer = Math.max(state.spawnTimer, 1.4);
-  ui.absorbButton.classList.add("is-active");
 
   state.absorbDemoTimer -= dt;
   if (state.absorbDemoTimer > 0 && state.bullets.length >= 10) return;
@@ -1992,9 +1988,6 @@ function storeBullet(bullet) {
   addSwallowBurst(player.x, player.y - 48, bullet.color);
   state.shake = Math.max(state.shake, 0.04);
 
-  if (player.charge >= player.maxCharge) {
-    ui.absorbButton.classList.add("is-ready");
-  }
 }
 
 function nearestEnemy(x, y) {
@@ -2527,7 +2520,6 @@ function releaseBreath() {
   state.flash = 0.18;
   player.releasePulse = 1;
   player.charge = 0;
-  ui.absorbButton.classList.remove("is-ready");
 }
 
 function tryActivateUltimate() {
@@ -2834,8 +2826,6 @@ function completeStage() {
   state.ultimateActive = null;
   state.ultimateDemo = false;
   input.absorbing = false;
-  ui.absorbButton.classList.remove("is-active", "is-ready");
-  ui.ultimateButton.classList.remove("is-ready");
   hideWaveBanner();
   updateBossHud();
   ui.endLabel.textContent = `${stage.stageNo} CLEAR`;
@@ -2863,8 +2853,6 @@ function showHome() {
   ui.endOverlay.classList.remove("active");
   ui.upgradeOverlay.classList.remove("active");
   ui.startOverlay.classList.add("active");
-  ui.absorbButton.classList.remove("is-active", "is-ready");
-  ui.ultimateButton.classList.remove("is-ready");
   hideWaveBanner();
   updateBossHud();
   renderSkillHud();
@@ -3232,10 +3220,6 @@ function updateHud() {
   ui.kills.textContent = state.kills;
   ui.hpFill.style.transform = `scaleX(${clamp(player.hp / player.maxHp, 0, 1)})`;
   ui.chargeFill.style.transform = `scaleX(${clamp(player.charge / player.maxCharge, 0, 1)})`;
-  ui.absorbButton.textContent = input.absorbing ? "吞" : player.charge >= 14 ? "吐" : "吞";
-  ui.absorbButton.classList.toggle("is-ready", player.charge >= player.maxCharge * 0.86 && state.mode === "playing");
-  const ultimateReady = state.mode === "playing" && state.ultimateCharge >= 100 && state.ultimateCooldown <= 0;
-  ui.ultimateButton.classList.toggle("is-ready", ultimateReady);
   updateBossHud();
 }
 
@@ -4505,7 +4489,6 @@ function applyRunSkill(skill) {
 function openUpgrade() {
   state.mode = "upgrade";
   input.absorbing = false;
-  ui.absorbButton.classList.remove("is-active", "is-ready");
   hideWaveBanner();
   ui.upgradeChoices.innerHTML = "";
   state.nextUpgrade += 10 + Math.floor(state.nextUpgrade / 18) * 2;
@@ -4548,8 +4531,6 @@ function endRun() {
   state.ultimateActive = null;
   state.ultimateDemo = false;
   input.absorbing = false;
-  ui.absorbButton.classList.remove("is-active", "is-ready");
-  ui.ultimateButton.classList.remove("is-ready");
   hideWaveBanner();
   updateBossHud();
   const partialGold = Math.floor(state.score / 180);
@@ -4569,7 +4550,6 @@ function togglePause() {
     state.mode = "paused";
     input.absorbing = false;
     input.absorbPointerId = null;
-    ui.absorbButton.classList.remove("is-active", "is-ready");
     ui.endLabel.textContent = "paused";
     ui.endTitle.textContent = "暫停";
     ui.finalScore.textContent = Math.floor(state.score).toLocaleString("zh-TW");
@@ -4586,7 +4566,6 @@ function beginAbsorb(pointerId = null) {
   if (state.mode !== "playing") return;
   input.absorbing = true;
   input.absorbPointerId = pointerId;
-  ui.absorbButton.classList.add("is-active");
 }
 
 function finishAbsorb(pointerId = null) {
@@ -4594,7 +4573,6 @@ function finishAbsorb(pointerId = null) {
   if (!input.absorbing) return;
   input.absorbing = false;
   input.absorbPointerId = null;
-  ui.absorbButton.classList.remove("is-active");
   releaseBreath();
 }
 
@@ -4716,8 +4694,6 @@ ui.restartButton.addEventListener("click", () => {
     showHome();
   }
 });
-ui.pauseButton.addEventListener("click", togglePause);
-
 window.addEventListener("keydown", (event) => {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
   if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
@@ -4727,11 +4703,25 @@ window.addEventListener("keydown", (event) => {
     togglePause();
     return;
   }
+  if (event.code === "Space") {
+    if (state.mode === "playing") {
+      event.preventDefault();
+      beginAbsorb(KEYBOARD_ABSORB_ID);
+    }
+    return;
+  }
   input.keys.add(key);
 });
 
 window.addEventListener("keyup", (event) => {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  if (event.code === "Space") {
+    if (state.mode === "playing" || input.absorbPointerId === KEYBOARD_ABSORB_ID) {
+      event.preventDefault();
+      finishAbsorb(KEYBOARD_ABSORB_ID);
+    }
+    return;
+  }
   input.keys.delete(key);
 });
 
@@ -4740,7 +4730,6 @@ window.addEventListener("blur", () => {
   input.absorbing = false;
   input.absorbPointerId = null;
   input.keys.clear();
-  ui.absorbButton.classList.remove("is-active");
 });
 
 async function bootGame() {

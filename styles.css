@@ -254,62 +254,6 @@ button {
   pointer-events: none;
 }
 
-.controls {
-  position: absolute;
-  z-index: 10;
-  right: max(16px, env(safe-area-inset-right));
-  bottom: max(18px, env(safe-area-inset-bottom));
-  display: none;
-  gap: 14px;
-  justify-items: end;
-  pointer-events: none;
-}
-
-.icon-button {
-  display: grid;
-  width: 78px;
-  height: 78px;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 50%;
-  color: var(--text);
-  background:
-    radial-gradient(circle at 50% 38%, rgba(66, 239, 210, 0.24), transparent 50%),
-    rgba(8, 14, 18, 0.72);
-  box-shadow:
-    0 14px 34px rgba(0, 0, 0, 0.35),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-  font-size: 2.15rem;
-  line-height: 1;
-  backdrop-filter: blur(10px);
-  touch-action: none;
-}
-
-.icon-button.small {
-  width: 44px;
-  height: 44px;
-  font-size: 1rem;
-  background: rgba(8, 14, 18, 0.56);
-}
-
-.icon-button.absorb.is-active {
-  border-color: rgba(66, 239, 210, 0.86);
-  color: #adfff2;
-  box-shadow:
-    0 0 0 7px rgba(66, 239, 210, 0.13),
-    0 0 42px rgba(66, 239, 210, 0.38),
-    inset 0 0 24px rgba(66, 239, 210, 0.22);
-}
-
-.icon-button.absorb.is-ready {
-  border-color: rgba(255, 209, 102, 0.92);
-  color: #fff4c5;
-  box-shadow:
-    0 0 0 7px rgba(255, 209, 102, 0.13),
-    0 0 46px rgba(255, 209, 102, 0.35),
-    inset 0 0 24px rgba(255, 209, 102, 0.2);
-}
-
 .overlay {
   position: absolute;
   inset: 0;
@@ -452,8 +396,7 @@ h2 {
 
 .primary-button:active,
 .secondary-button:active,
-.upgrade-choice:active,
-.icon-button:active {
+.upgrade-choice:active {
   transform: translateY(1px);
 }
 
@@ -1360,24 +1303,6 @@ h2 {
 .launch-bar .primary-button {
   max-width: none;
   margin: 0;
-}
-
-.icon-button.ultimate {
-  width: 58px;
-  height: 58px;
-  color: #fff4c5;
-  font-size: 1.35rem;
-  background:
-    radial-gradient(circle at 50% 38%, rgba(255, 209, 102, 0.25), transparent 50%),
-    rgba(8, 14, 18, 0.72);
-}
-
-.icon-button.ultimate.is-ready {
-  border-color: rgba(255, 209, 102, 0.92);
-  box-shadow:
-    0 0 0 7px rgba(255, 209, 102, 0.13),
-    0 0 46px rgba(255, 209, 102, 0.35),
-    inset 0 0 24px rgba(255, 209, 102, 0.2);
 }
 
 .upgrade-panel {
