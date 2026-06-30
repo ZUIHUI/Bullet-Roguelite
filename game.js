@@ -69,7 +69,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "44";
+const ASSET_VERSION = "45";
 const DEFAULT_STAGE_BACKGROUND_ID = "dragon-ritual-arena";
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDxQqZWabxFJ0RWc5Xr3bVjBj1QctS4hGE",
@@ -641,6 +641,50 @@ const RUN_SKILLS = [
     max: 5,
     apply() {
       state.upgrades.counterMult += 0.22;
+    },
+  },
+  {
+    id: "chainStorm",
+    icon: "雷",
+    title: "雷弧連鎖",
+    element: "雷",
+    detail: "命中後跳電傷害附近敵人",
+    max: 4,
+    apply(level) {
+      state.upgrades.chainZap = level;
+    },
+  },
+  {
+    id: "soulHarvest",
+    icon: "魂",
+    title: "魂能收割",
+    element: "吞噬",
+    detail: "擊殺時回補吞噬槽與大絕能量",
+    max: 4,
+    apply(level) {
+      state.upgrades.soulHarvest = level;
+    },
+  },
+  {
+    id: "runeGuard",
+    icon: "盾",
+    title: "符文護盾",
+    element: "防禦",
+    detail: "降低受傷並延長受擊保護",
+    max: 4,
+    apply(level) {
+      state.upgrades.runeGuard = level;
+    },
+  },
+  {
+    id: "eliteHunter",
+    icon: "獵",
+    title: "獵龍印記",
+    element: "Boss",
+    detail: "對菁英與 Boss 傷害提升",
+    max: 5,
+    apply(level) {
+      state.upgrades.eliteHunter = level;
     },
   },
   {
@@ -1589,6 +1633,10 @@ const state = {
     swallowWidth: 42,
     storedBonus: 0,
     counterMult: 1,
+    chainZap: 0,
+    soulHarvest: 0,
+    runeGuard: 0,
+    eliteHunter: 0,
   },
 };
 
@@ -1664,6 +1712,10 @@ function resetRun() {
     counterMult: stats.counter,
     splashBurn: 0,
     slowPower: 0,
+    chainZap: 0,
+    soulHarvest: 0,
+    runeGuard: 0,
+    eliteHunter: 0,
   };
   input.target = { x: state.player.x, y: state.player.y };
   input.absorbing = false;
@@ -1905,6 +1957,21 @@ function nearestEnemy(x, y) {
     }
   }
   return best;
+}
+
+function enemyDamageMultiplier(enemy) {
+  const hunterLevel = state.upgrades.eliteHunter || 0;
+  if (!hunterLevel || enemy.kind === "normal" || enemy.kind === "demo") return 1;
+  return enemy.kind === "boss" ? 1 + hunterLevel * 0.16 : 1 + hunterLevel * 0.12;
+}
+
+function damageEnemy(enemy, amount, color = enemy.color) {
+  const damage = amount * enemyDamageMultiplier(enemy);
+  enemy.hp -= damage;
+  if ((state.upgrades.eliteHunter || 0) && enemy.kind !== "normal" && enemy.kind !== "demo" && (damage > 5 || Math.random() < 0.18)) {
+    addParticles(enemy.x, enemy.y, 2, color, 72);
+  }
+  return damage;
 }
 
 function spawnEnemy(kind = "normal") {
@@ -2570,7 +2637,7 @@ function emitUltimatePulse(active, levelMult) {
     const radius = dragonId === "void" ? 230 : 175;
     for (const enemy of state.enemies) {
       if (dist2(enemy.x, enemy.y, player.x, player.y) < radius ** 2) {
-        enemy.hp -= (dragonId === "metal" ? 32 : 48) * levelMult;
+        damageEnemy(enemy, (dragonId === "metal" ? 32 : 48) * levelMult, accent);
       }
     }
   }
@@ -2654,6 +2721,14 @@ function defeatEnemy(enemy) {
   state.stageKills += enemy.kind === "boss" ? 5 : enemy.kind === "elite" ? 3 : 1;
   addUltimateCharge(enemy.kind === "boss" ? 100 : enemy.kind === "elite" ? 24 : 8);
   state.player.charge = clamp(state.player.charge + 2, 0, state.player.maxCharge);
+  const harvestLevel = state.upgrades.soulHarvest || 0;
+  if (harvestLevel) {
+    const harvestPower = enemy.kind === "boss" ? 4 : enemy.kind === "elite" ? 2.4 : 1;
+    state.player.charge = clamp(state.player.charge + harvestPower * (1.6 + harvestLevel * 0.75), 0, state.player.maxCharge);
+    addUltimateCharge(harvestPower * (0.8 + harvestLevel * 0.36));
+    state.player.hp = Math.min(state.player.maxHp, state.player.hp + harvestLevel * 0.035 * harvestPower);
+    addParticles(enemy.x, enemy.y, 6 + harvestLevel, "#77f5a6", 150);
+  }
   addParticles(enemy.x, enemy.y, enemy.type === "brute" ? 30 : 18, enemy.color, 190);
   if (state.currentDragon?.id === "jade") {
     state.player.hp = Math.min(state.player.maxHp, state.player.hp + 0.15);
@@ -2673,8 +2748,13 @@ function damagePlayer(amount) {
   if (input.absorbing && state.currentDragon?.id === "metal") {
     amount = Math.max(0.5, amount * 0.65);
   }
+  const guardLevel = state.upgrades.runeGuard || 0;
+  if (guardLevel) {
+    amount = Math.max(0.35, amount * (1 - guardLevel * 0.085));
+    addParticles(player.x, player.y - 12, 5 + guardLevel, "#a678ff", 120);
+  }
   player.hp -= amount;
-  player.invulnerable = 1.05;
+  player.invulnerable = 1.05 + guardLevel * 0.08;
   state.shake = Math.max(state.shake, 9);
   addParticles(player.x, player.y, 18, "#ff6b6b", 170);
   if (player.hp <= 0) {
@@ -2862,7 +2942,7 @@ function updateShots(dt) {
     let used = false;
     for (const enemy of state.enemies) {
       if (dist2(shot.x, shot.y, enemy.x, enemy.y) < (shot.r + enemy.r) ** 2) {
-        enemy.hp -= shot.damage;
+        damageEnemy(enemy, shot.damage, shot.color);
         const slowPower = state.upgrades.slowPower || 0;
         const splashBurn = state.upgrades.splashBurn || 0;
         if (shot.slow || slowPower) {
@@ -2874,15 +2954,19 @@ function updateShots(dt) {
           addParticles(enemy.x, enemy.y, 10, "#ffd166", 110);
           for (const nearby of state.enemies) {
             if (nearby !== enemy && dist2(enemy.x, enemy.y, nearby.x, nearby.y) < splashRadius ** 2) {
-              nearby.hp -= shot.damage * splashDamage;
+              damageEnemy(nearby, shot.damage * splashDamage, shot.color);
             }
           }
         }
-        if (shot.chainRadius) {
+        const chainLevel = state.upgrades.chainZap || 0;
+        const chainRadius = shot.chainRadius || (chainLevel ? 62 + chainLevel * 12 : 0);
+        if (chainRadius) {
           let chains = 0;
+          const maxChains = shot.chainRadius ? 3 : 1 + Math.min(3, chainLevel);
+          const chainDamage = shot.chainRadius ? 0.34 : 0.18 + chainLevel * 0.055;
           for (const nearby of state.enemies) {
-            if (nearby !== enemy && chains < 3 && dist2(enemy.x, enemy.y, nearby.x, nearby.y) < shot.chainRadius ** 2) {
-              nearby.hp -= shot.damage * 0.34;
+            if (nearby !== enemy && chains < maxChains && dist2(enemy.x, enemy.y, nearby.x, nearby.y) < chainRadius ** 2) {
+              damageEnemy(nearby, shot.damage * chainDamage, shot.color);
               nearby.shoot += 0.08;
               chains += 1;
               addParticles(nearby.x, nearby.y, 5, shot.color, 130);
@@ -2916,7 +3000,7 @@ function updateBreaths(dt) {
       const beamWidth = breath.width * (0.55 + breath.life / breath.maxLife * 0.45);
       const withinX = Math.abs(enemy.x - breath.x) < beamWidth / 2 + enemy.r;
       if (withinX && enemy.y < state.player.y + 4) {
-        enemy.hp -= breath.damage * dt;
+        damageEnemy(enemy, breath.damage * dt, breath.colorB || breath.colorA || enemy.color);
       }
     }
 
