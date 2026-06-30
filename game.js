@@ -69,8 +69,15 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "46";
+const ASSET_VERSION = "47";
 const DEFAULT_STAGE_BACKGROUND_ID = "dragon-ritual-arena";
+const STAGE_BACKGROUND_BY_ART = {
+  valley: "star-valley-arena",
+  reef: "tide-reef-arena",
+  forge: "ember-forge-arena",
+  spire: "storm-spire-arena",
+  rift: "void-rift-arena",
+};
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDxQqZWabxFJ0RWc5Xr3bVjBj1QctS4hGE",
   authDomain: "swallow-5407f.firebaseapp.com",
@@ -485,6 +492,7 @@ const STAGES = [
     chapterTitle: "星塵甦醒",
     name: "1-10 星核祭壇",
     artId: "rift",
+    backgroundId: DEFAULT_STAGE_BACKGROUND_ID,
     boss: "暴走星核龍",
     objective: "擊敗暴走星核龍並完成第一章封印",
     storyIntro: "祭壇中心的星核已經孵出暴走龍影，十波彈幕後才會露出本體。",
@@ -1176,12 +1184,16 @@ function getBattleDragonImage(dragon) {
 }
 
 function stageBackgroundImagePath(stage) {
-  const imageId = stage?.backgroundId || DEFAULT_STAGE_BACKGROUND_ID;
+  const imageId = stageBackgroundId(stage);
   return `./assets/stage-backgrounds/${imageId}.png?v=${ASSET_VERSION}`;
 }
 
+function stageBackgroundId(stage) {
+  return stage?.backgroundId || STAGE_BACKGROUND_BY_ART[stage?.artId] || DEFAULT_STAGE_BACKGROUND_ID;
+}
+
 function getStageBackgroundImage(stage) {
-  const imageId = stage?.backgroundId || DEFAULT_STAGE_BACKGROUND_ID;
+  const imageId = stageBackgroundId(stage);
   if (!stageBackgroundImageCache.has(imageId)) {
     const image = new Image();
     image.src = stageBackgroundImagePath(stage);
