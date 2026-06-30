@@ -66,7 +66,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "48";
+const ASSET_VERSION = "49";
 const DEFAULT_STAGE_BACKGROUND_ID = "dragon-ritual-arena";
 const STAGE_BACKGROUND_BY_ART = {
   valley: "star-valley-arena",
@@ -778,9 +778,51 @@ function readLocalMetaRaw() {
   }
 }
 
+function saveTimestamp(rawMeta) {
+  if (Number.isFinite(rawMeta?.__sourceLastSeenAt)) return rawMeta.__sourceLastSeenAt;
+  const directTime = Number(rawMeta?.lastSeenAt || rawMeta?.meta?.lastSeenAt || 0);
+  if (Number.isFinite(directTime) && directTime > 0) return directTime;
+  const updatedAt = rawMeta?.updatedAt;
+  if (typeof updatedAt?.toMillis === "function") return updatedAt.toMillis();
+  if (typeof updatedAt?.seconds === "number") return updatedAt.seconds * 1000;
+  return 0;
+}
+
+function saveProgressScore(meta) {
+  if (!meta) return 0;
+  const dragons = Object.values(meta.dragons || {});
+  const artifacts = Object.values(meta.artifacts || {});
+  const clearedStages = Object.values(meta.clearedStages || {}).filter(Boolean).length;
+  const ownedDragons = dragons.filter((dragon) => dragon?.owned).length;
+  const dragonLevels = dragons.reduce((sum, dragon) => sum + Number(dragon?.level || 0) + Number(dragon?.stars || 0) * 2, 0);
+  const artifactLevels = artifacts.reduce((sum, artifact) => sum + (artifact?.unlocked ? 2 : 0) + Number(artifact?.level || 0), 0);
+  return (
+    ownedDragons * 120 +
+    dragonLevels * 12 +
+    artifactLevels * 20 +
+    clearedStages * 180 +
+    Number(meta.highestStageIndex || 0) * 170 +
+    Number(meta.equipmentLevel || 0) * 30 +
+    Number(meta.skillLevel || 0) * 30 +
+    Number(meta.gold || 0) * 0.05 +
+    Number(meta.scales || 0) * 0.5
+  );
+}
+
+function chooseBestMeta(localMeta, remoteMeta, hasLocalSave) {
+  if (!hasLocalSave) return remoteMeta || localMeta;
+  if (!remoteMeta) return localMeta;
+  const localScore = saveProgressScore(localMeta);
+  const remoteScore = saveProgressScore(remoteMeta);
+  if (remoteScore + 80 < localScore) return localMeta;
+  if (remoteScore > localScore + 80) return remoteMeta;
+  return saveTimestamp(remoteMeta) > saveTimestamp(localMeta) ? remoteMeta : localMeta;
+}
+
 function mergeMeta(saved) {
   const fallback = createDefaultMeta();
   if (!saved) return fallback;
+  const sourceLastSeenAt = saveTimestamp(saved);
   const merged = { ...fallback, ...saved };
   merged.saveSchemaVersion = SAVE_SCHEMA_VERSION;
   merged.saveMode = "single-player";
@@ -797,6 +839,10 @@ function mergeMeta(saved) {
   }
   merged.idleGold += calculateIdleGold(merged.lastSeenAt);
   merged.lastSeenAt = Date.now();
+  Object.defineProperty(merged, "__sourceLastSeenAt", {
+    value: sourceLastSeenAt,
+    enumerable: false,
+  });
   return merged;
 }
 
@@ -872,9 +918,7 @@ async function syncFirebaseMeta(localMeta, hasLocalSave = true) {
     if (snapshot?.exists()) {
       const data = snapshot.data();
       const remoteMeta = mergeMeta(data.meta || data);
-      const remoteTime = Number(remoteMeta.lastSeenAt || 0);
-      const localTime = Number(localMeta.lastSeenAt || 0);
-      nextMeta = !hasLocalSave || remoteTime > localTime ? remoteMeta : localMeta;
+      nextMeta = chooseBestMeta(localMeta, remoteMeta, hasLocalSave);
       state.meta = nextMeta;
       persistLocalMeta(nextMeta);
       renderHome();
@@ -1613,8 +1657,7 @@ function openHomeEntry(entryId) {
     return;
   }
   if (entryId === "summon") {
-    setHomeTab("growth");
-    ui.summonButton.focus?.();
+    performSummon();
     return;
   }
   setHomeTab(entryId);
@@ -3113,6 +3156,8 @@ function updateStars(dt) {
 
 function update(dt) {
   updateStars(dt);
+  state.waveBannerTimer = Math.max(0, state.waveBannerTimer - dt);
+  ui.waveBanner.classList.toggle("active", state.waveBannerTimer > 0);
   if (state.mode !== "playing") return;
 
   state.time += dt;
@@ -3124,8 +3169,6 @@ function update(dt) {
   state.shake = Math.max(0, state.shake - dt * 22);
   state.flash = Math.max(0, state.flash - dt);
   state.ultimateCooldown = Math.max(0, state.ultimateCooldown - dt);
-  state.waveBannerTimer = Math.max(0, state.waveBannerTimer - dt);
-  ui.waveBanner.classList.toggle("active", state.waveBannerTimer > 0);
 
   if (state.absorbDemo) {
     maintainAbsorbDemo(dt);
@@ -4660,11 +4703,18 @@ ui.skillButton.addEventListener("click", () => {
   saveMeta();
   renderHome();
 });
-ui.summonButton.addEventListener("click", () => {
+
+function performSummon() {
   const cost = 80;
-  if (state.meta.scales < cost) return;
+  setHomeTab("growth");
+  if (state.meta.scales < cost) {
+    showWaveBanner(`龍晶不足，還差 ${cost - state.meta.scales}晶`);
+    ui.summonButton.focus?.();
+    return false;
+  }
   state.meta.scales -= cost;
   const locked = DRAGONS.filter((dragon) => !state.meta.dragons[dragon.id].owned);
+  let message = "";
   if (locked.length) {
     const dragon = locked[Math.floor(Math.random() * locked.length)];
     const meta = state.meta.dragons[dragon.id];
@@ -4672,15 +4722,22 @@ ui.summonButton.addEventListener("click", () => {
     meta.level = 1;
     meta.stars = 1;
     state.meta.selectedDragonId = dragon.id;
+    message = `召喚成功：${dragon.name}`;
     setHomeTab("dragons");
   } else {
     const dragon = selectedDragon();
     state.meta.dragons[dragon.id].stars += 1;
     state.meta.scales += 25;
+    message = `龍魂共鳴：${dragon.name} 升星`;
+    setHomeTab("dragons");
   }
   saveMeta();
   renderHome();
-});
+  showWaveBanner(message);
+  return true;
+}
+
+ui.summonButton.addEventListener("click", performSummon);
 for (const tabButton of ui.tabs) {
   tabButton.addEventListener("click", () => setHomeTab(tabButton.dataset.tab));
 }

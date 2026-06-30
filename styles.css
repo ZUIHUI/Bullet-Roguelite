@@ -214,7 +214,7 @@ button {
 
 .wave-banner {
   position: absolute;
-  z-index: 9;
+  z-index: 40;
   top: max(118px, calc(env(safe-area-inset-top) + 104px));
   left: 50%;
   min-width: 150px;
