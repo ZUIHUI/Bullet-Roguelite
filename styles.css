@@ -514,7 +514,8 @@ h2 {
 
 .resource-strip div,
 .growth-card,
-.artifact-panel,
+.artifact-detail,
+.artifact-card,
 .featured-dragon,
 .dragon-card,
 .stage-card {
@@ -1047,6 +1048,12 @@ h2 {
 
 .artifact-panel {
   display: grid;
+  gap: 10px;
+  padding-bottom: 84px;
+}
+
+.artifact-detail {
+  display: grid;
   gap: 12px;
   padding: 14px;
 }
@@ -1063,6 +1070,67 @@ h2 {
   width: 64px;
   height: 64px;
   filter: drop-shadow(0 10px 16px rgba(255, 209, 102, 0.22));
+}
+
+.artifact-collection {
+  display: grid;
+  gap: 8px;
+}
+
+.artifact-card {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  gap: 10px;
+  align-items: center;
+  min-height: 76px;
+  padding: 10px;
+  color: var(--text);
+  text-align: left;
+}
+
+.artifact-card-art {
+  width: 46px;
+  height: 46px;
+  filter: drop-shadow(0 0 16px color-mix(in srgb, var(--artifact-accent, var(--gold)) 28%, transparent));
+}
+
+.artifact-card-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.artifact-card-copy em {
+  overflow: hidden;
+  color: color-mix(in srgb, var(--artifact-accent, var(--gold)) 72%, var(--muted));
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-card-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-card.is-selected {
+  border-color: color-mix(in srgb, var(--artifact-accent, var(--gold)) 72%, transparent);
+  background:
+    radial-gradient(circle at 86% 18%, color-mix(in srgb, var(--artifact-accent, var(--gold)) 24%, transparent), transparent 40%),
+    linear-gradient(135deg, color-mix(in srgb, var(--artifact-main, var(--aqua)) 16%, transparent), rgba(255, 255, 255, 0.07));
+}
+
+.artifact-card.is-unlocked .artifact-card-art {
+  filter:
+    drop-shadow(0 0 18px color-mix(in srgb, var(--artifact-accent, var(--gold)) 42%, transparent))
+    drop-shadow(0 10px 16px rgba(0, 0, 0, 0.24));
+}
+
+.artifact-card.is-locked {
+  opacity: 0.62;
 }
 
 .stage-card {

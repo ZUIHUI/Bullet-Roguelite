@@ -69,7 +69,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "43";
+const ASSET_VERSION = "44";
 const DEFAULT_STAGE_BACKGROUND_ID = "dragon-ritual-arena";
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDxQqZWabxFJ0RWc5Xr3bVjBj1QctS4hGE",
@@ -659,6 +659,10 @@ const RUN_SKILLS = [
 
 function artifactForDragon(dragon) {
   return ARTIFACTS.find((artifact) => artifact.id === dragon.artifactId);
+}
+
+function dragonForArtifact(artifact) {
+  return DRAGONS.find((dragon) => dragon.id === artifact.dragonId) || DRAGONS[0];
 }
 
 function createDefaultMeta() {
@@ -1379,6 +1383,33 @@ function renderArtifactPanel() {
   const dragon = selectedDragon();
   const artifact = selectedArtifact();
   const artifactMeta = getArtifactMeta(artifact);
+  const artifactCards = ARTIFACTS.map((item) => {
+    const pairedDragon = dragonForArtifact(item);
+    const pairedDragonMeta = getDragonMeta(pairedDragon);
+    const itemMeta = getArtifactMeta(item);
+    const selected = item.id === artifact.id;
+    const dragonLocked = !pairedDragonMeta.owned;
+    const status = itemMeta.unlocked
+      ? `Lv.${itemMeta.level} · ${pairedDragon.ultimateName}`
+      : dragonLocked
+        ? `${pairedDragon.cost}金解鎖龍`
+        : `${item.cost}晶啟動神器`;
+    return `
+      <button
+        class="artifact-card${selected ? " is-selected" : ""}${itemMeta.unlocked ? " is-unlocked" : ""}${dragonLocked ? " is-locked" : ""}"
+        type="button"
+        data-artifact-id="${item.id}"
+        style="--artifact-main:${pairedDragon.colors[0]};--artifact-accent:${pairedDragon.colors[1]}"
+      >
+        ${spriteMarkup(`artifact-${item.id}`, "artifact-card-art", item.name)}
+        <span class="artifact-card-copy">
+          <em>${pairedDragon.name}</em>
+          <strong>${item.name}</strong>
+          <span>${status}</span>
+        </span>
+      </button>
+    `;
+  }).join("");
   const unlockText = artifactMeta.unlocked
     ? `強化 ${artifactUpgradeCost(artifact)}晶`
     : `啟動 ${artifact.cost}晶`;
@@ -1387,17 +1418,22 @@ function renderArtifactPanel() {
     : "大絕會自動施放 · 尚未啟動神器加成";
 
   ui.artifactPanel.innerHTML = `
-    <div class="artifact-title">
-      <div>
-        <span>${dragon.name} 專屬神器</span>
-        <strong>${artifact.name}</strong>
+    <section class="artifact-detail">
+      <div class="artifact-title">
+        <div>
+          <span>${dragon.name} 專屬神器</span>
+          <strong>${artifact.name}</strong>
+        </div>
+        ${spriteMarkup(`artifact-${artifact.id}`, "art-sprite artifact-art", artifact.name)}
       </div>
-      ${spriteMarkup(`artifact-${artifact.id}`, "art-sprite artifact-art", artifact.name)}
+      <p class="info-text">${dragon.ultimateName}：${dragon.ultimateDesc}</p>
+      <p class="info-text">${artifactStatus}</p>
+      <p class="info-text">能量滿會自動施放；神器啟動後提升持續時間與傷害。</p>
+      <button id="artifactActionButton" class="primary-button" type="button">${unlockText}</button>
+    </section>
+    <div class="artifact-collection" aria-label="神器陣列">
+      ${artifactCards}
     </div>
-    <p class="info-text">${dragon.ultimateName}：${dragon.ultimateDesc}</p>
-    <p class="info-text">${artifactStatus}</p>
-    <p class="info-text">能量滿會自動施放；神器啟動後提升持續時間與傷害。</p>
-    <button id="artifactActionButton" class="primary-button" type="button">${unlockText}</button>
   `;
 
   document.querySelector("#artifactActionButton").addEventListener("click", () => {
@@ -1409,6 +1445,21 @@ function renderArtifactPanel() {
     saveMeta();
     renderHome();
   });
+  for (const card of ui.artifactPanel.querySelectorAll("[data-artifact-id]")) {
+    card.addEventListener("click", () => {
+      const nextArtifact = ARTIFACTS.find((item) => item.id === card.dataset.artifactId);
+      if (!nextArtifact) return;
+      const nextDragon = dragonForArtifact(nextArtifact);
+      if (!getDragonMeta(nextDragon).owned) {
+        setHomeTab("dragons");
+        return;
+      }
+      state.meta.selectedDragonId = nextArtifact.dragonId;
+      saveMeta();
+      renderHome();
+      setHomeTab("artifact");
+    });
+  }
 }
 
 function renderStageGrid() {
