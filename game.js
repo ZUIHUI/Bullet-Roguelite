@@ -61,12 +61,12 @@ const ui = {
 const TAU = Math.PI * 2;
 const SAVE_KEY = "starSwallowDragonSave.v1";
 const DEVICE_ID_KEY = "starSwallowDragonDeviceId.v1";
-const SAVE_SCHEMA_VERSION = 2;
+const SAVE_SCHEMA_VERSION = 3;
 const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "49";
+const ASSET_VERSION = "50";
 const DEFAULT_STAGE_BACKGROUND_ID = "dragon-ritual-arena";
 const STAGE_BACKGROUND_BY_ART = {
   valley: "star-valley-arena",
@@ -753,6 +753,9 @@ function createDefaultMeta() {
 
 let saveStore = {
   type: "local",
+  identityType: "device",
+  userId: "",
+  uid: "",
   deviceId: "",
   saveDocId: "",
 };
@@ -767,6 +770,34 @@ function getDeviceId() {
   } catch {
     return `device-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
+}
+
+function safeIdentitySegment(value) {
+  return String(value || "unknown").replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
+function buildSaveDocId(identityType, userId) {
+  return `${FIREBASE_GAME_ID}__${identityType}_${safeIdentitySegment(userId)}__${FIREBASE_SAVE_SLOT}`;
+}
+
+async function resolveFirebaseIdentity(app, authModule) {
+  if (!authModule) throw new Error("Firebase Auth module unavailable");
+  const { browserLocalPersistence, getAuth, setPersistence, signInAnonymously } = authModule;
+  const auth = getAuth(app);
+  try {
+    if (browserLocalPersistence && setPersistence) {
+      await withTimeout(setPersistence(auth, browserLocalPersistence), 2500, null);
+    }
+  } catch (error) {
+    console.warn("Firebase auth persistence fallback.", error);
+  }
+  const credential = auth.currentUser ? { user: auth.currentUser } : await withTimeout(signInAnonymously(auth), 4500, null);
+  if (!credential?.user?.uid) throw new Error("Anonymous auth did not return a uid");
+  return {
+    identityType: "anonymous",
+    userId: credential.user.uid,
+    uid: credential.user.uid,
+  };
 }
 
 function readLocalMetaRaw() {
@@ -876,6 +907,11 @@ async function initFirebaseStore() {
     if (!modules) throw new Error("Firebase SDK load timed out");
     const [{ initializeApp }, { doc, getDoc, getFirestore, serverTimestamp, setDoc }] = modules;
     const app = initializeApp(FIREBASE_CONFIG);
+    const authModule = await withTimeout(
+      import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth.js`).catch(() => null),
+      4500,
+      null,
+    );
     if (FIREBASE_CONFIG.measurementId) {
       import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-analytics.js`)
         .then(({ getAnalytics, isSupported }) => isSupported().then((supported) => supported && getAnalytics(app)))
@@ -883,9 +919,22 @@ async function initFirebaseStore() {
     }
     const db = getFirestore(app);
     const deviceId = getDeviceId();
-    const saveDocId = `${FIREBASE_GAME_ID}__${deviceId}__${FIREBASE_SAVE_SLOT}`;
+    let identity = {
+      identityType: "device",
+      userId: deviceId,
+      uid: "",
+    };
+    try {
+      identity = await resolveFirebaseIdentity(app, authModule);
+    } catch (error) {
+      console.warn("Anonymous auth unavailable; using device save id.", error);
+    }
+    const saveDocId = buildSaveDocId(identity.identityType, identity.userId);
     return {
       type: "firebase",
+      identityType: identity.identityType,
+      userId: identity.userId,
+      uid: identity.uid,
       deviceId,
       saveDocId,
       docRef: doc(db, FIREBASE_COLLECTION, saveDocId),
@@ -895,7 +944,15 @@ async function initFirebaseStore() {
     };
   } catch (error) {
     console.warn("Firebase save unavailable; using local save.", error);
-    return { type: "local", deviceId: getDeviceId() };
+    const deviceId = getDeviceId();
+    return {
+      type: "local",
+      identityType: "device",
+      userId: deviceId,
+      uid: "",
+      deviceId,
+      saveDocId: buildSaveDocId("device", deviceId),
+    };
   }
 }
 
@@ -933,6 +990,9 @@ async function syncFirebaseMeta(localMeta, hasLocalSave = true) {
           saveMode: "single-player",
           saveSlot: FIREBASE_SAVE_SLOT,
           saveSchemaVersion: SAVE_SCHEMA_VERSION,
+          identityType: saveStore.identityType,
+          userId: saveStore.userId,
+          uid: saveStore.uid,
           deviceId: saveStore.deviceId,
           saveDocId: saveStore.saveDocId,
           meta: JSON.parse(JSON.stringify(nextMeta)),
@@ -963,6 +1023,9 @@ function saveMeta() {
         saveMode: "single-player",
         saveSlot: FIREBASE_SAVE_SLOT,
         saveSchemaVersion: SAVE_SCHEMA_VERSION,
+        identityType: saveStore.identityType,
+        userId: saveStore.userId,
+        uid: saveStore.uid,
         deviceId: saveStore.deviceId,
         saveDocId: saveStore.saveDocId,
         meta,
