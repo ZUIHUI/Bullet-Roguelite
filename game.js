@@ -66,7 +66,7 @@ const SAVE_KEY = "starSwallowDragonSave.v1";
 const DEVICE_ID_KEY = "starSwallowDragonDeviceId.v1";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "players";
-const ASSET_VERSION = "38";
+const ASSET_VERSION = "40";
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDxQqZWabxFJ0RWc5Xr3bVjBj1QctS4hGE",
   authDomain: "swallow-5407f.firebaseapp.com",
@@ -1651,8 +1651,10 @@ function addSwallowBurst(x, y, color) {
 
 function getMawZone() {
   const player = state.player;
-  const length = state.upgrades.swallowLength;
-  const width = state.upgrades.swallowWidth;
+  const rangeBoost = input.absorbing ? 1.38 : 1;
+  const widthBoost = input.absorbing ? 1.55 : 1;
+  const length = state.upgrades.swallowLength * rangeBoost;
+  const width = state.upgrades.swallowWidth * widthBoost;
   return {
     x: player.x,
     y: player.y - 48,
@@ -1664,10 +1666,10 @@ function getMawZone() {
 function getMawHit(bullet) {
   const maw = getMawZone();
   const ahead = maw.y - bullet.y;
-  if (ahead < -10 || ahead > maw.length) return null;
+  if (ahead < -18 || ahead > maw.length) return null;
 
   const progress = clamp(ahead / maw.length, 0, 1);
-  const halfWidth = maw.width * (0.58 + progress * 0.72);
+  const halfWidth = maw.width * (0.68 + progress * 0.95);
   const lateral = Math.abs(bullet.x - maw.x);
   if (lateral > halfWidth + bullet.r) return null;
 
@@ -1677,7 +1679,7 @@ function getMawHit(bullet) {
     progress,
     lateral,
     halfWidth,
-    pull: clamp(1 - ahead / maw.length, 0.36, 1),
+    pull: clamp(1 - ahead / maw.length, 0.48, 1),
     mouthDistance,
   };
 }
@@ -1875,18 +1877,209 @@ function firePlayerShots() {
   const player = state.player;
   const spread = state.upgrades.shotSpread;
   const form = state.currentForm || selectedForm();
-  const offsets = spread === 1 ? [0] : spread === 2 ? [-8, 8] : [-15, 0, 15];
-
-  for (const offset of offsets) {
+  const dragon = state.currentDragon || selectedDragon();
+  const dragonId = dragon.id;
+  const [mainColor, accentColor] = dragon.colors;
+  const formDamage = form.id === "flare" ? 1.08 : 1;
+  const baseDamage = state.upgrades.shotDamage * formDamage;
+  const lanes = (count, gap = 14) => {
+    const middle = (count - 1) / 2;
+    return Array.from({ length: count }, (_, index) => ({ lane: index - middle, x: (index - middle) * gap }));
+  };
+  const emit = ({
+    x = 0,
+    y = -50,
+    angle = -Math.PI / 2,
+    speed = 520,
+    r = 4.8,
+    damage = 1,
+    color = mainColor,
+    homing = false,
+    turn = 4.8,
+    life = 2.1,
+    burn = false,
+    slow = false,
+    pierce = 0,
+  }) => {
     state.shots.push({
-      x: player.x + offset,
-      y: player.y - 50,
-      vx: offset * 2.2,
-      vy: -510,
-      r: 4.8,
-      damage: state.upgrades.shotDamage * (form.id === "flare" ? 1.08 : 1),
-      color: form.id === "flare" ? "#ffd166" : offset === 0 ? "#42efd2" : "#ffd166",
+      x: player.x + x,
+      y: player.y + y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      r,
+      damage: baseDamage * damage,
+      color,
+      homing,
+      turn,
+      life,
+      burn,
+      slow,
+      pierce,
     });
+  };
+
+  switch (dragonId) {
+    case "ember": {
+      for (const { lane, x } of lanes(1 + spread, 13)) {
+        emit({
+          x,
+          angle: -Math.PI / 2 + lane * 0.12,
+          speed: 470,
+          r: 8.5,
+          damage: 1.18,
+          color: lane % 2 ? accentColor : "#ff7a2f",
+          burn: true,
+          life: 1.45,
+        });
+      }
+      break;
+    }
+    case "tide": {
+      for (const { lane, x } of lanes(2 + spread, 17)) {
+        emit({
+          x,
+          angle: -Math.PI / 2 + lane * 0.18,
+          speed: 500,
+          r: 6.8,
+          damage: 0.82,
+          color: lane % 2 ? accentColor : mainColor,
+          slow: true,
+          homing: Math.abs(lane) <= 0.5,
+          turn: 3.2,
+        });
+      }
+      break;
+    }
+    case "jade": {
+      for (const { lane, x } of lanes(1 + spread, 19)) {
+        emit({
+          x,
+          angle: -Math.PI / 2 + lane * 0.2,
+          speed: 535,
+          r: 5.8,
+          damage: 0.88,
+          color: lane % 2 ? accentColor : mainColor,
+          homing: true,
+          turn: 6.5,
+          life: 2.4,
+        });
+      }
+      break;
+    }
+    case "volt": {
+      for (const { lane, x } of lanes(2 + spread, 11)) {
+        emit({
+          x,
+          angle: -Math.PI / 2 + lane * 0.09,
+          speed: 760,
+          r: 4.2,
+          damage: 0.62,
+          color: lane % 2 ? "#ffd63f" : mainColor,
+          homing: Math.abs(lane) < 0.6,
+          turn: 5.4,
+          life: 1.55,
+        });
+      }
+      break;
+    }
+    case "frost": {
+      for (const { lane, x } of lanes(1 + spread, 18)) {
+        emit({
+          x,
+          angle: -Math.PI / 2 + lane * 0.16,
+          speed: 485,
+          r: 7.4,
+          damage: 0.94,
+          color: lane % 2 ? accentColor : "#d8f7ff",
+          slow: true,
+          pierce: spread > 1 ? 1 : 0,
+          life: 2.15,
+        });
+      }
+      break;
+    }
+    case "shadow": {
+      for (const { lane, x } of lanes(2 + spread, 21)) {
+        emit({
+          x: x + Math.sin(state.time * 8 + lane) * 8,
+          angle: -Math.PI / 2 + lane * 0.24,
+          speed: 545,
+          r: 6.4,
+          damage: 1.02,
+          color: lane % 2 ? accentColor : mainColor,
+          homing: true,
+          turn: 7.2,
+          life: 2.35,
+        });
+      }
+      break;
+    }
+    case "metal": {
+      for (const { lane, x } of lanes(spread, 18)) {
+        emit({
+          x,
+          angle: -Math.PI / 2 + lane * 0.08,
+          speed: 430,
+          r: 10.4,
+          damage: 1.42,
+          color: lane % 2 ? accentColor : mainColor,
+          pierce: 1 + Math.floor(spread / 2),
+          life: 2.2,
+        });
+      }
+      break;
+    }
+    case "bloom": {
+      for (const { lane, x } of lanes(2 + spread, 16)) {
+        emit({
+          x,
+          angle: -Math.PI / 2 + lane * 0.21 + Math.sin(state.time * 5 + lane) * 0.05,
+          speed: 520,
+          r: 5.6,
+          damage: 0.76,
+          color: lane % 2 ? accentColor : mainColor,
+          homing: true,
+          turn: 5.8,
+          burn: true,
+          life: 2.3,
+        });
+      }
+      break;
+    }
+    case "void": {
+      for (const { lane, x } of lanes(2 + spread, 22)) {
+        emit({
+          x: x + Math.sin(state.time * 6 + lane) * 11,
+          angle: -Math.PI / 2 + lane * 0.2,
+          speed: 560,
+          r: 7.2,
+          damage: 0.96,
+          color: lane % 2 ? accentColor : mainColor,
+          homing: true,
+          turn: 8.2,
+          pierce: spread > 2 ? 1 : 0,
+          life: 2.6,
+        });
+      }
+      break;
+    }
+    case "astral":
+    default: {
+      for (const { lane, x } of lanes(1 + spread, 16)) {
+        emit({
+          x,
+          angle: -Math.PI / 2 + lane * 0.14,
+          speed: 570,
+          r: lane === 0 ? 5.8 : 5,
+          damage: lane === 0 ? 1.02 : 0.78,
+          color: lane % 2 ? accentColor : mainColor,
+          homing: true,
+          turn: 5.6,
+          life: 2.25,
+        });
+      }
+      break;
+    }
   }
 }
 
@@ -1946,16 +2139,17 @@ function releaseBreath() {
 function tryActivateUltimate() {
   if (state.mode !== "playing" || state.ultimateCooldown > 0 || state.ultimateActive) return;
   const artifactMeta = getArtifactMeta(state.currentArtifact);
-  if ((!artifactMeta.unlocked && !state.ultimateDemo) || state.ultimateCharge < 100) return;
+  if (!state.ultimateDemo && state.ultimateCharge < 100) return;
 
   const player = state.player;
   const dragonId = state.currentDragon.id;
-  const duration = 4.4 + artifactMeta.level * 0.28;
+  const artifactLevel = artifactMeta?.unlocked ? Math.max(1, artifactMeta.level || 1) : 0;
+  const duration = 4.4 + artifactLevel * 0.28;
   state.ultimateCharge = 0;
   state.ultimateCooldown = duration + 4.8;
   state.ultimateActive = {
     dragonId,
-    level: artifactMeta.level,
+    level: artifactLevel,
     time: duration,
     maxTime: duration,
     tick: 0,
@@ -1965,7 +2159,7 @@ function tryActivateUltimate() {
   state.shake = Math.max(state.shake, 10);
   player.releasePulse = 1;
   if (dragonId === "jade") {
-    player.hp = Math.min(player.maxHp, player.hp + 2 + artifactMeta.level * 0.6);
+    player.hp = Math.min(player.maxHp, player.hp + 2 + artifactLevel * 0.6);
   }
   addParticles(player.x, player.y - 34, 48, state.currentDragon.colors[1], 240);
   showWaveBanner(state.currentDragon.ultimateName);
@@ -2138,12 +2332,10 @@ function updatePlayer(dt) {
   player.absorbTime = input.absorbing ? player.absorbTime + dt : Math.max(0, player.absorbTime - dt * 4);
   player.releasePulse = Math.max(0, (player.releasePulse || 0) - dt * 3.2);
 
-  if (!input.absorbing) {
-    state.upgrades.shotTimer -= dt;
-    if (state.upgrades.shotTimer <= 0) {
-      firePlayerShots();
-      state.upgrades.shotTimer = state.upgrades.shotCooldown;
-    }
+  state.upgrades.shotTimer -= dt;
+  if (state.upgrades.shotTimer <= 0) {
+    firePlayerShots();
+    state.upgrades.shotTimer = state.upgrades.shotCooldown;
   }
 }
 
@@ -2286,12 +2478,12 @@ function updateBullets(dt) {
         const tangentX = -dy / distance;
         const tangentY = dx / distance;
         const vortexSide = bullet.vortexSide || (Math.random() < 0.5 ? -1 : 1);
-        const vortexGrip = clamp(1 - hit.mouthDistance / Math.max(96, hit.maw.width * 2.8), 0.26, 1);
-        const mouthSnap = 1 - smoothstep(22 + bullet.r, Math.max(86, hit.maw.width * 2.1), hit.mouthDistance);
-        const pull = (1320 + state.wave * 28) * (0.72 + hit.pull * 0.88) * (1 + vortexGrip * 0.62 + mouthSnap * 1.2);
-        const swirl = vortexSide * (340 + hit.progress * 240 + hit.pull * 230) * vortexGrip * (1 - mouthSnap * 0.28);
+        const vortexGrip = clamp(1 - hit.mouthDistance / Math.max(118, hit.maw.width * 2.9), 0.34, 1);
+        const mouthSnap = 1 - smoothstep(30 + bullet.r, Math.max(104, hit.maw.width * 2.15), hit.mouthDistance);
+        const pull = (1780 + state.wave * 34) * (0.82 + hit.pull * 0.98) * (1 + vortexGrip * 0.78 + mouthSnap * 1.42);
+        const swirl = vortexSide * (410 + hit.progress * 280 + hit.pull * 260) * vortexGrip * (1 - mouthSnap * 0.36);
         bullet.vortexSide = vortexSide;
-        bullet.absorbT = clamp(Math.max(bullet.absorbT || 0, 0.26) + dt * (7 + hit.pull * 8 + vortexGrip * 3), 0, 1);
+        bullet.absorbT = clamp(Math.max(bullet.absorbT || 0, 0.34) + dt * (9 + hit.pull * 10 + vortexGrip * 4), 0, 1);
         bullet.absorbProgress = hit.progress;
         bullet.absorbWidth = hit.halfWidth;
         bullet.absorbMouthDistance = hit.mouthDistance;
@@ -2303,7 +2495,7 @@ function updateBullets(dt) {
         bullet.vx *= 1 - dt * 0.18;
         bullet.vy *= 1 - dt * 0.18;
         const speed = Math.hypot(bullet.vx, bullet.vy);
-        const maxSwallowSpeed = 820 + hit.pull * 420 + mouthSnap * 620;
+        const maxSwallowSpeed = 1120 + hit.pull * 620 + mouthSnap * 880;
         if (speed > maxSwallowSpeed) {
           const scale = maxSwallowSpeed / speed;
           bullet.vx *= scale;
@@ -2311,7 +2503,7 @@ function updateBullets(dt) {
         }
         bullet.spin += dt * vortexSide * (18 + hit.pull * 24 + mouthSnap * 18);
 
-        if (hit.mouthDistance < 26 + bullet.r + mouthSnap * 10) {
+        if (hit.mouthDistance < 34 + bullet.r + mouthSnap * 14) {
           storeBullet(bullet);
           state.bullets.splice(i, 1);
           continue;
@@ -2324,14 +2516,14 @@ function updateBullets(dt) {
 
     if (input.absorbing) {
       const hit = getMawHit(bullet);
-      if (hit && hit.mouthDistance < 26 + bullet.r + (bullet.absorbSnap || 0) * 10) {
+      if (hit && hit.mouthDistance < 34 + bullet.r + (bullet.absorbSnap || 0) * 14) {
         storeBullet(bullet);
         state.bullets.splice(i, 1);
         continue;
       }
     }
 
-    if (dist2(bullet.x, bullet.y, player.x, player.y) < (bullet.r + player.r * 0.72) ** 2) {
+    if (dist2(bullet.x, bullet.y, player.x, player.y) < (bullet.r + player.r * 0.52) ** 2) {
       if (state.absorbDemo && bullet.demo) {
         state.bullets.splice(i, 1);
         continue;
@@ -2394,7 +2586,13 @@ function updateShots(dt) {
           }
         }
         addParticles(shot.x, shot.y, 4, shot.color, 80);
-        used = true;
+        if (shot.pierce > 0) {
+          shot.pierce -= 1;
+          shot.x += shot.vx * dt * 2.2;
+          shot.y += shot.vy * dt * 2.2;
+        } else {
+          used = true;
+        }
         break;
       }
     }
@@ -2591,10 +2789,7 @@ function updateHud() {
   ui.chargeFill.style.transform = `scaleX(${clamp(player.charge / player.maxCharge, 0, 1)})`;
   ui.absorbButton.textContent = input.absorbing ? "吞" : player.charge >= 14 ? "吐" : "吞";
   ui.absorbButton.classList.toggle("is-ready", player.charge >= player.maxCharge * 0.86 && state.mode === "playing");
-  const artifact = state.currentArtifact || selectedArtifact();
-  const artifactMeta = state.meta?.artifacts?.[artifact.id];
-  const ultimateReady =
-    state.mode === "playing" && artifactMeta?.unlocked && state.ultimateCharge >= 100 && state.ultimateCooldown <= 0;
+  const ultimateReady = state.mode === "playing" && state.ultimateCharge >= 100 && state.ultimateCooldown <= 0;
   ui.ultimateButton.classList.toggle("is-ready", ultimateReady);
   updateBossHud();
 }
@@ -2839,8 +3034,9 @@ function drawBattleSwallowField(mouthY, mainColor, accentColor, chargeRatio, abs
   if (!absorbTension) return;
 
   const pullCharge = clamp(absorbTime * 1.35 + chargeRatio * 0.5, 0, 1.4);
-  const length = state.upgrades.swallowLength * (1 + pullCharge * 0.12);
-  const width = state.upgrades.swallowWidth * (1 + pullCharge * 0.08);
+  const mawZone = getMawZone();
+  const length = mawZone.length * (1 + pullCharge * 0.12);
+  const width = mawZone.width * (1 + pullCharge * 0.08);
   const pulse = 1 + Math.sin(state.time * (9 + pullCharge * 4)) * (0.04 + pullCharge * 0.025);
   const cone = ctx.createLinearGradient(0, mouthY, 0, mouthY - length);
   cone.addColorStop(0, colorAlpha(accentColor, 0.5 + chargeRatio * 0.22));
@@ -3025,13 +3221,25 @@ function drawWingBeatLayer(image, frame, drawX, drawY, spriteW, spriteH, time, w
     };
     const flapDepth = Math.abs(wingPulse);
     drawSpriteRegion(image, region, dest, {
+      alpha: 0.18 + flapDepth * 0.16,
+      frame,
+      pivotX: isLeft ? 0.86 : 0.14,
+      pivotY: 0.32,
+      rotate: side * wingPulse * (0.1 + motion.absorbTension * 0.04),
+      y: -flapDepth * (8 + motion.absorbTension * 4),
+      scaleY: 1 + flapDepth * 0.12,
+      composite: "lighter",
+      shadowColor: mainColor,
+      shadowBlur: 18 + motion.chargeRatio * 10,
+    });
+    drawSpriteRegion(image, region, dest, {
       alpha: 0.9,
       frame,
       pivotX: isLeft ? 0.86 : 0.14,
       pivotY: 0.32,
-      rotate: side * wingPulse * (0.045 + motion.absorbTension * 0.03),
-      y: -flapDepth * (3.5 + motion.absorbTension * 3),
-      scaleY: 1 + flapDepth * 0.055,
+      rotate: side * wingPulse * (0.07 + motion.absorbTension * 0.045),
+      y: -flapDepth * (5.5 + motion.absorbTension * 4),
+      scaleY: 1 + flapDepth * 0.075,
       shadowColor: mainColor,
       shadowBlur: 8 + motion.chargeRatio * 8,
     });
@@ -3039,18 +3247,19 @@ function drawWingBeatLayer(image, frame, drawX, drawY, spriteW, spriteH, time, w
 }
 
 function drawTailLayer(image, frame, drawX, drawY, spriteW, spriteH, time, motion) {
-  const tailStart = 0.46;
-  const segments = 9;
+  const tailStart = 0.42;
+  const segments = 12;
   const band = (1 - tailStart) / segments;
+  const swallowDrive = 1 + motion.absorbTension * 0.34 + motion.chargeRatio * 0.12;
   for (let i = segments - 1; i >= 0; i -= 1) {
     const p = i / Math.max(1, segments - 1);
     const sourceY = tailStart + i * band;
     const tailWeight = smoothstep(0.05, 1, p);
     const sway =
-      Math.sin(time * 5.6 + p * TAU * 0.82) * (1.5 + tailWeight * 17) +
-      Math.sin(time * 3.1 + p * 5.2) * tailWeight * 4 +
-      motion.flightTilt * (4 + tailWeight * 16);
-    const lift = Math.cos(time * 5.2 + p * TAU) * tailWeight * 1.6;
+      Math.sin(time * 6.2 + p * TAU * 1.08) * (2 + tailWeight * 23) * swallowDrive +
+      Math.sin(time * 3.6 + p * 6.4) * tailWeight * 5 +
+      motion.flightTilt * (5 + tailWeight * 20);
+    const lift = Math.cos(time * 5.8 + p * TAU * 1.2) * tailWeight * (2 + motion.absorbTension * 1.6);
     drawSpriteRegion(
       image,
       { x: 0, y: sourceY, w: 1, h: band + 0.006 },
@@ -3064,8 +3273,8 @@ function drawTailLayer(image, frame, drawX, drawY, spriteW, spriteH, time, motio
         frame,
         x: sway,
         y: lift,
-        rotate: Math.sin(time * 5.3 + p * TAU) * tailWeight * 0.045,
-        scaleX: 1 + Math.sin(time * 4.9 + p * TAU) * tailWeight * 0.018,
+        rotate: Math.sin(time * 5.8 + p * TAU * 1.15) * tailWeight * (0.065 + motion.absorbTension * 0.025),
+        scaleX: 1 + Math.sin(time * 5.2 + p * TAU) * tailWeight * 0.028,
       },
     );
   }
@@ -3075,7 +3284,7 @@ function drawCentralBodyLayer(image, frame, drawX, drawY, spriteW, spriteH, time
   const bodyX = 0.18;
   const bodyW = 0.64;
   const bodyEnd = 0.74;
-  const segments = 11;
+  const segments = 14;
   const band = bodyEnd / segments;
   ctx.save();
   ctx.shadowColor = motion.absorbTension ? accentColor : mainColor;
@@ -3085,10 +3294,12 @@ function drawCentralBodyLayer(image, frame, drawX, drawY, spriteW, spriteH, time
     const flex = smoothstep(0.18, 1, progress);
     const headWeight = 1 - smoothstep(0, 0.42, progress);
     const sway =
-      Math.sin(time * 4.7 + progress * TAU * 1.1) * (0.5 + flex * 4.5) +
-      motion.flightTilt * (1.5 + flex * 8) -
-      motion.releasePulse * headWeight * 4;
-    const breathe = 1 + Math.sin(time * 4.4 + progress * TAU) * (0.01 + flex * 0.012) + motion.absorbTension * headWeight * 0.024;
+      Math.sin(time * 5.2 + progress * TAU * 1.3) * (0.8 + flex * 6.2) +
+      Math.sin(time * 2.8 + progress * 5.8) * flex * 1.4 +
+      motion.flightTilt * (1.5 + flex * 9.5) -
+      motion.releasePulse * headWeight * 4.5;
+    const gulp = motion.absorbTension * headWeight;
+    const breathe = 1 + Math.sin(time * 4.9 + progress * TAU) * (0.012 + flex * 0.017) + gulp * (0.032 + Math.sin(time * 18) * 0.01);
     const sourceY = frame.y + frame.h * i * band;
     const sourceH = Math.min(frame.h * (band + 0.004), frame.y + frame.h - sourceY);
     if (sourceH > 0) {
@@ -3114,8 +3325,10 @@ function drawCentralBodyLayer(image, frame, drawX, drawY, spriteW, spriteH, time
     { x: drawX + spriteW * 0.12, y: drawY, w: spriteW * 0.76, h: spriteH * 0.3 },
     {
       frame,
-      x: motion.flightTilt * 3 - motion.releasePulse * 3,
-      y: -motion.absorbTension * 2,
+      x: motion.flightTilt * 4 - motion.releasePulse * 3,
+      y: -motion.absorbTension * (4 + Math.sin(time * 18) * 1.6),
+      rotate: motion.flightTilt * 0.035 + Math.sin(time * 7.2) * motion.absorbTension * 0.018,
+      scaleY: 1 + motion.absorbTension * (0.035 + Math.max(0, Math.sin(time * 18)) * 0.026),
       shadowColor: motion.absorbTension ? accentColor : mainColor,
       shadowBlur: 8 + motion.chargeRatio * 8,
     },
@@ -3125,11 +3338,32 @@ function drawCentralBodyLayer(image, frame, drawX, drawY, spriteW, spriteH, time
 function drawMouthEnergyLayer(mouthY, spriteW, spriteH, pose, mainColor, accentColor, darkColor, motion) {
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.strokeStyle = colorAlpha(accentColor, 0.56 + motion.chargeRatio * 0.18);
-  ctx.lineWidth = 2;
+  const chomp = motion.absorbTension * (0.55 + Math.max(0, Math.sin(state.time * 18 + pose.phase)) * 0.45);
+  ctx.strokeStyle = colorAlpha(accentColor, 0.56 + motion.chargeRatio * 0.18 + chomp * 0.18);
+  ctx.lineWidth = 2 + chomp * 1.4;
   ctx.beginPath();
-  ctx.ellipse(0, mouthY + 2, 11 + motion.chargeRatio * 8, 6 + motion.absorbTension * 7, 0, 0, TAU);
+  ctx.ellipse(0, mouthY + 2, 11 + motion.chargeRatio * 8 + chomp * 5, 6 + motion.absorbTension * 7 + chomp * 4, 0, 0, TAU);
   ctx.stroke();
+
+  if (motion.absorbTension > 0) {
+    ctx.strokeStyle = colorAlpha("#fff4c5", 0.42 + chomp * 0.38);
+    ctx.lineWidth = 1.4 + chomp * 1.2;
+    ctx.beginPath();
+    ctx.arc(-8 - chomp * 2, mouthY + 3, 13 + chomp * 4, Math.PI * 0.18, Math.PI * 0.82);
+    ctx.arc(8 + chomp * 2, mouthY + 3, 13 + chomp * 4, Math.PI * 0.18, Math.PI * 0.82);
+    ctx.stroke();
+
+    for (let i = 0; i < 5; i += 1) {
+      const t = (state.time * 4.4 + i / 5) % 1;
+      const side = i % 2 ? -1 : 1;
+      ctx.globalAlpha = (1 - t) * (0.28 + chomp * 0.28);
+      ctx.fillStyle = i % 2 ? accentColor : mainColor;
+      ctx.beginPath();
+      ctx.arc(side * (26 - t * 23), mouthY - 20 + t * 22, 1.8 + (1 - t) * 2.4, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
 
   const runeCount = dragonRuneCount(mainColor, accentColor, darkColor);
   for (let i = 0; i < runeCount; i += 1) {
