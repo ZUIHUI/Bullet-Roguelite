@@ -66,7 +66,27 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "50";
+const ASSET_VERSION = "51";
+const COMBAT_TUNING = {
+  tailSway: 0.46,
+  tailLift: 0.58,
+  tailRotate: 0.5,
+  tailTrail: 0.44,
+  playerShotDamage: 0.68,
+  playerShotCooldown: 1.14,
+  absorbShotDamage: 0.86,
+  absorbShotCooldown: 1.08,
+  breathShotDamage: 0.68,
+  breathBeamDamage: 0.52,
+  ultimateDamage: 0.62,
+  ultimateTickDelay: 1.14,
+  enemyHp: 1.16,
+  enemySpeed: 1.07,
+  enemyBulletSpeed: 1.04,
+  enemyBulletDamage: 1.08,
+  enemyShootDelay: 0.92,
+  enemySpawnPace: 0.82,
+};
 const DEFAULT_STAGE_BACKGROUND_ID = "dragon-ritual-arena";
 const STAGE_BACKGROUND_BY_ART = {
   valley: "star-valley-arena",
@@ -634,7 +654,7 @@ const RUN_SKILLS = [
     detail: "自動射擊速度提升",
     max: 5,
     apply() {
-      state.upgrades.shotCooldown = Math.max(0.08, state.upgrades.shotCooldown * 0.86);
+      state.upgrades.shotCooldown = Math.max(0.105, state.upgrades.shotCooldown * 0.9);
     },
   },
   {
@@ -645,7 +665,7 @@ const RUN_SKILLS = [
     detail: "吞彈反擊與大絕傷害提升",
     max: 5,
     apply() {
-      state.upgrades.counterMult += 0.22;
+      state.upgrades.counterMult += 0.16;
     },
   },
   {
@@ -1779,8 +1799,8 @@ const state = {
   runSkills: {},
   meta: null,
   upgrades: {
-    shotDamage: 13,
-    shotCooldown: 0.17,
+    shotDamage: 13 * COMBAT_TUNING.playerShotDamage,
+    shotCooldown: 0.17 * COMBAT_TUNING.playerShotCooldown,
     shotTimer: 0,
     shotSpread: 1,
     swallowLength: 108,
@@ -1857,8 +1877,8 @@ function resetRun() {
   state.breaths = [];
   const stats = activeDragonStats();
   state.upgrades = {
-    shotDamage: 13 * stats.attack + (state.meta.skillLevel || 0) * 1.2,
-    shotCooldown: (state.currentForm.id === "swift" ? 0.145 : 0.17) / stats.speed,
+    shotDamage: (13 * stats.attack + (state.meta.skillLevel || 0) * 1.2) * COMBAT_TUNING.playerShotDamage,
+    shotCooldown: ((state.currentForm.id === "swift" ? 0.145 : 0.17) / stats.speed) * COMBAT_TUNING.playerShotCooldown,
     shotTimer: 0,
     shotSpread: 1,
     swallowLength: 108 * stats.swallow,
@@ -2196,8 +2216,9 @@ function spawnEnemy(kind = "normal") {
     });
   }
 
-  enemy.hp = Math.round(enemy.hp * (mods.enemyHp || 1));
-  enemy.speed *= mods.enemySpeed || 1;
+  enemy.hp = Math.round(enemy.hp * (mods.enemyHp || 1) * COMBAT_TUNING.enemyHp);
+  enemy.speed *= (mods.enemySpeed || 1) * COMBAT_TUNING.enemySpeed;
+  enemy.shoot *= COMBAT_TUNING.enemyShootDelay;
   enemy.hazard *= mods.hazardDelay || 1;
   enemy.maxHp = enemy.hp;
   if (kind === "boss") {
@@ -2209,12 +2230,14 @@ function spawnEnemy(kind = "normal") {
 function fireEnemyBullet(enemy, angle, speed, radius = 6, color = enemy.color) {
   const mods = stageMods();
   const drift = mods.bulletDrift ? Math.sin(state.time * 1.7 + enemy.phase) * 34 : 0;
+  const bulletSpeed = speed * (mods.bulletSpeed || 1) * COMBAT_TUNING.enemyBulletSpeed;
   state.bullets.push({
     x: enemy.x,
     y: enemy.y + enemy.r * 0.7,
-    vx: Math.cos(angle) * speed * (mods.bulletSpeed || 1) + drift,
-    vy: Math.sin(angle) * speed * (mods.bulletSpeed || 1),
+    vx: Math.cos(angle) * bulletSpeed + drift,
+    vy: Math.sin(angle) * bulletSpeed,
     r: radius * (mods.bulletSize || 1),
+    damage: (radius > 7 ? 1.16 : 1) * COMBAT_TUNING.enemyBulletDamage,
     color,
     power: radius > 7 ? 11 : 7,
     spin: rand(0, TAU),
@@ -2286,7 +2309,7 @@ function firePlayerShots() {
   const shotIndex = (player.shotIndex = (player.shotIndex || 0) + 1);
   const pulseSide = shotIndex % 2 === 0 ? 1 : -1;
   const formDamage = form.id === "flare" ? 1.08 : form.id === "swift" ? 0.96 : 1;
-  const baseDamage = state.upgrades.shotDamage * formDamage * (absorbing ? 0.94 : 1);
+  const baseDamage = state.upgrades.shotDamage * formDamage * (absorbing ? COMBAT_TUNING.absorbShotDamage : 1);
   const focusLane = absorbing ? 1 : 0;
   const lanes = (count, gap = 14, offset = 0) => {
     const safeCount = Math.max(1, Math.round(count));
@@ -2602,7 +2625,7 @@ function releaseBreath() {
       vx: Math.sin(spread) * 180,
       vy: -460 - charge * 1.2,
       r: 7 + item.radius * 0.22,
-      damage: (state.upgrades.shotDamage + item.power * 5.8 + charge * 0.22) * state.upgrades.counterMult,
+      damage: (state.upgrades.shotDamage + item.power * 5.8 + charge * 0.22) * state.upgrades.counterMult * COMBAT_TUNING.breathShotDamage,
       color: item.color,
       homing: true,
       turn: 5.2,
@@ -2617,7 +2640,7 @@ function releaseBreath() {
       width: 46 + charge * (state.currentForm?.id === "flare" ? 0.48 : 0.36),
       life: 0.34 + charge * 0.0025,
       maxLife: 0.34 + charge * 0.0025,
-      damage: (140 + charge * (state.currentForm?.id === "flare" ? 1.9 : 1.6)) * state.upgrades.counterMult,
+      damage: (140 + charge * (state.currentForm?.id === "flare" ? 1.9 : 1.6)) * state.upgrades.counterMult * COMBAT_TUNING.breathBeamDamage,
     });
   }
 
@@ -2684,7 +2707,7 @@ function updateUltimate(dt) {
 
   if (active.tick <= 0) {
     emitUltimatePulse(active, levelMult);
-    active.tick = active.dragonId === "volt" ? 0.09 : active.dragonId === "ember" ? 0.16 : 0.12;
+    active.tick = (active.dragonId === "volt" ? 0.09 : active.dragonId === "ember" ? 0.16 : 0.12) * COMBAT_TUNING.ultimateTickDelay;
   }
 
   if (active.time <= 0) {
@@ -2740,7 +2763,7 @@ function emitUltimatePulse(active, levelMult) {
     width: (widthByDragon[dragonId] || 92) * levelMult,
     life: 0.32,
     maxLife: 0.32,
-    damage: (damageByDragon[dragonId] || 72) * state.upgrades.counterMult * levelMult,
+    damage: (damageByDragon[dragonId] || 72) * state.upgrades.counterMult * levelMult * COMBAT_TUNING.ultimateDamage,
     colorA: main,
     colorB: accent,
     ultimate: true,
@@ -2772,7 +2795,7 @@ function emitUltimatePulse(active, levelMult) {
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       r: dragonId === "ember" ? 12 : dragonId === "metal" ? 13 : dragonId === "volt" ? 6 : 8,
-      damage: (34 + state.upgrades.shotDamage * (dragonId === "ember" ? 1.5 : 1.1)) * state.upgrades.counterMult * levelMult,
+      damage: (34 + state.upgrades.shotDamage * (dragonId === "ember" ? 1.5 : 1.1)) * state.upgrades.counterMult * levelMult * COMBAT_TUNING.ultimateDamage,
       color: i % 2 ? accent : main,
       homing: dragonId !== "metal" && dragonId !== "ember",
       turn: dragonId === "volt" || dragonId === "void" ? 8 : 4.8,
@@ -2786,7 +2809,7 @@ function emitUltimatePulse(active, levelMult) {
     const radius = dragonId === "void" ? 230 : 175;
     for (const enemy of state.enemies) {
       if (dist2(enemy.x, enemy.y, player.x, player.y) < radius ** 2) {
-        damageEnemy(enemy, (dragonId === "metal" ? 32 : 48) * levelMult, accent);
+        damageEnemy(enemy, (dragonId === "metal" ? 32 : 48) * levelMult * COMBAT_TUNING.ultimateDamage, accent);
       }
     }
   }
@@ -2827,7 +2850,7 @@ function updatePlayer(dt) {
   state.upgrades.shotTimer -= dt;
   if (state.upgrades.shotTimer <= 0) {
     firePlayerShots();
-    state.upgrades.shotTimer = state.upgrades.shotCooldown * (input.absorbing ? 0.82 : 1);
+    state.upgrades.shotTimer = state.upgrades.shotCooldown * (input.absorbing ? COMBAT_TUNING.absorbShotCooldown : 1);
   }
 }
 
@@ -2842,7 +2865,8 @@ function updateEnemies(dt) {
 
     if (enemy.y > 32 && enemy.shoot <= 0) {
       enemyShoot(enemy);
-      enemy.shoot = enemy.type === "brute" ? rand(1.05, 1.55) : rand(0.82, 1.34);
+      const shootDelay = enemy.type === "brute" ? rand(1, 1.44) : rand(0.76, 1.22);
+      enemy.shoot = shootDelay * COMBAT_TUNING.enemyShootDelay;
     }
 
     if (enemy.y > 72 && enemy.kind !== "normal" && enemy.hazard <= 0) {
@@ -3036,7 +3060,7 @@ function updateBullets(dt) {
         state.bullets.splice(i, 1);
         continue;
       }
-      damagePlayer(1);
+      damagePlayer(bullet.damage || 1);
       state.bullets.splice(i, 1);
       continue;
     }
@@ -3261,9 +3285,17 @@ function update(dt) {
   }
 
   if (!state.bossSpawned && state.spawnTimer <= 0) {
-    spawnEnemy();
-    const pace = Math.max(0.42, 1.18 - state.wave * 0.055);
-    state.spawnTimer = rand(pace * 0.68, pace * 1.18);
+    const stagePressure = stageIndex(state.currentStage);
+    const packCount =
+      1 +
+      (state.wave >= 4 && Math.random() < 0.28 ? 1 : 0) +
+      (state.wave >= 7 && Math.random() < 0.24 ? 1 : 0) +
+      (stagePressure >= 5 && Math.random() < 0.2 ? 1 : 0);
+    for (let i = 0; i < packCount; i += 1) {
+      spawnEnemy();
+    }
+    const pace = Math.max(0.36, (1.13 - state.wave * 0.053) * COMBAT_TUNING.enemySpawnPace);
+    state.spawnTimer = rand(pace * 0.58, pace * 0.98);
   }
 
   updatePlayer(dt);
@@ -3912,7 +3944,7 @@ function drawAnimatedDragonImage(image, pose, mouthY, mainColor, accentColor, da
   drawSpriteRegion(
     image,
     { x: 0, y: 0, w: 1, h: 1 },
-    { x: drawX + tailPulse * 1.5, y: drawY + 5, w: spriteW, h: spriteH },
+    { x: drawX + tailPulse * 1.5 * COMBAT_TUNING.tailSway, y: drawY + 5, w: spriteW, h: spriteH },
     {
       alpha: 0.14,
       frame,
@@ -3940,10 +3972,10 @@ function drawAnimatedDragonImage(image, pose, mouthY, mainColor, accentColor, da
   ctx.strokeStyle = colorAlpha(darkColor, 0.18);
   ctx.lineWidth = 5;
   ctx.beginPath();
-  ctx.moveTo(Math.sin(time * 5.6) * 4, spriteH * 0.28);
+  ctx.moveTo(Math.sin(time * 5.6) * 4 * COMBAT_TUNING.tailTrail, spriteH * 0.28);
   for (let i = 0; i <= 5; i += 1) {
     const p = i / 5;
-    ctx.lineTo(Math.sin(time * 5.6 + p * 2.4) * (5 + p * 26), spriteH * (0.28 + p * 0.34));
+    ctx.lineTo(Math.sin(time * 5.6 + p * 2.4) * (5 + p * 26) * COMBAT_TUNING.tailTrail, spriteH * (0.28 + p * 0.34));
   }
   ctx.stroke();
   ctx.restore();
@@ -4036,16 +4068,17 @@ function drawTailLayer(image, frame, drawX, drawY, spriteW, spriteH, time, motio
   const tailStart = 0.42;
   const segments = 12;
   const band = (1 - tailStart) / segments;
-  const swallowDrive = 1 + motion.absorbTension * 0.34 + motion.chargeRatio * 0.12;
+  const swallowDrive = 1 + motion.absorbTension * 0.18 + motion.chargeRatio * 0.08;
   for (let i = segments - 1; i >= 0; i -= 1) {
     const p = i / Math.max(1, segments - 1);
     const sourceY = tailStart + i * band;
     const tailWeight = smoothstep(0.05, 1, p);
-    const sway =
+    const sway = (
       Math.sin(time * 6.2 + p * TAU * 1.08) * (2 + tailWeight * 23) * swallowDrive +
       Math.sin(time * 3.6 + p * 6.4) * tailWeight * 5 +
-      motion.flightTilt * (5 + tailWeight * 20);
-    const lift = Math.cos(time * 5.8 + p * TAU * 1.2) * tailWeight * (2 + motion.absorbTension * 1.6);
+      motion.flightTilt * (5 + tailWeight * 20)
+    ) * COMBAT_TUNING.tailSway;
+    const lift = Math.cos(time * 5.8 + p * TAU * 1.2) * tailWeight * (2 + motion.absorbTension * 1.6) * COMBAT_TUNING.tailLift;
     drawSpriteRegion(
       image,
       { x: 0, y: sourceY, w: 1, h: band + 0.006 },
@@ -4059,7 +4092,7 @@ function drawTailLayer(image, frame, drawX, drawY, spriteW, spriteH, time, motio
         frame,
         x: sway,
         y: lift,
-        rotate: Math.sin(time * 5.8 + p * TAU * 1.15) * tailWeight * (0.065 + motion.absorbTension * 0.025),
+        rotate: Math.sin(time * 5.8 + p * TAU * 1.15) * tailWeight * (0.065 + motion.absorbTension * 0.025) * COMBAT_TUNING.tailRotate,
         scaleX: 1 + Math.sin(time * 5.2 + p * TAU) * tailWeight * 0.028,
       },
     );
