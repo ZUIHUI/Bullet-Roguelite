@@ -46,6 +46,8 @@ const ui = {
   equipmentGrid: document.querySelector("#equipmentGrid"),
   skillButton: document.querySelector("#skillButton"),
   skillText: document.querySelector("#skillText"),
+  skillLoadoutText: document.querySelector("#skillLoadoutText"),
+  skillLoadoutGrid: document.querySelector("#skillLoadoutGrid"),
   summonButton: document.querySelector("#summonButton"),
   summonText: document.querySelector("#summonText"),
   saveStatus: document.querySelector("#saveStatusText"),
@@ -64,12 +66,12 @@ const ui = {
 const TAU = Math.PI * 2;
 const SAVE_KEY = "starSwallowDragonSave.v1";
 const DEVICE_ID_KEY = "starSwallowDragonDeviceId.v1";
-const SAVE_SCHEMA_VERSION = 3;
+const SAVE_SCHEMA_VERSION = 4;
 const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "55";
+const ASSET_VERSION = "56";
 const COMBAT_TUNING = {
   tailSway: 0.28,
   tailLift: 0.36,
@@ -940,6 +942,44 @@ const RUN_SKILLS = [
   },
 ];
 
+const DEFAULT_SKILL_LOADOUT_IDS = ["wideMaw"];
+const MAX_SKILL_LOADOUT_SLOTS = 3;
+const RUN_SKILL_BY_ID = new Map(RUN_SKILLS.map((skill) => [skill.id, skill]));
+
+function skillLoadoutLimit(meta = state.meta) {
+  const researchLevel = Number(meta?.skillLevel || 0);
+  return clamp(1 + Math.floor(researchLevel / 3), 1, MAX_SKILL_LOADOUT_SLOTS);
+}
+
+function normalizeSkillLoadout(meta = state.meta) {
+  const limit = skillLoadoutLimit(meta);
+  const source = Array.isArray(meta?.skillLoadoutIds) ? meta.skillLoadoutIds : DEFAULT_SKILL_LOADOUT_IDS;
+  const seen = new Set();
+  const ids = [];
+
+  for (const id of source) {
+    if (!RUN_SKILL_BY_ID.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+    if (ids.length >= limit) break;
+  }
+
+  if (!ids.length) {
+    ids.push(...DEFAULT_SKILL_LOADOUT_IDS.filter((id) => RUN_SKILL_BY_ID.has(id)).slice(0, limit));
+  }
+
+  if (meta) {
+    meta.skillLoadoutIds = ids;
+  }
+  return ids;
+}
+
+function selectedRunSkills(meta = state.meta) {
+  return normalizeSkillLoadout(meta)
+    .map((id) => RUN_SKILL_BY_ID.get(id))
+    .filter(Boolean);
+}
+
 function artifactForDragon(dragon) {
   return ARTIFACTS.find((artifact) => artifact.id === dragon.artifactId);
 }
@@ -974,6 +1014,7 @@ function createDefaultMeta() {
     idleGold: 0,
     equipmentLevel: 0,
     skillLevel: 0,
+    skillLoadoutIds: [...DEFAULT_SKILL_LOADOUT_IDS],
     selectedDragonId: "astral",
     selectedFormId: "origin",
     selectedStageId: "1-1",
@@ -1149,6 +1190,7 @@ function mergeMeta(saved) {
   if (!STAGES.some((stage) => stage.id === merged.selectedStageId)) {
     merged.selectedStageId = fallback.selectedStageId;
   }
+  normalizeSkillLoadout(merged);
   merged.idleGold += calculateIdleGold(merged.lastSeenAt);
   merged.lastSeenAt = Date.now();
   Object.defineProperty(merged, "__sourceLastSeenAt", {
@@ -1694,6 +1736,8 @@ function renderHome() {
   const artifactMeta = getArtifactMeta(artifact);
   const stage = selectedStage();
   const power = dragonPower(dragon);
+  const loadoutIds = normalizeSkillLoadout(state.meta);
+  const loadoutLimit = skillLoadoutLimit();
 
   ui.gold.textContent = Math.floor(state.meta.gold).toLocaleString("zh-TW");
   ui.scales.textContent = Math.floor(state.meta.scales).toLocaleString("zh-TW");
@@ -1709,7 +1753,7 @@ function renderHome() {
   ui.starButton.textContent = `升星 ${dragonStarCost(dragon)}晶`;
   ui.equipmentText.textContent = `吞星鱗 +${state.meta.equipmentLevel}`;
   ui.equipmentCostText.textContent = `強化 ${equipmentUpgradeCost()}金`;
-  ui.skillText.textContent = `吞噬學 +${state.meta.skillLevel}`;
+  ui.skillText.textContent = `吞噬學 +${state.meta.skillLevel} · 戰術 ${loadoutIds.length}/${loadoutLimit}`;
   ui.summonText.textContent = "80晶";
   renderSaveStatus();
 
@@ -1718,6 +1762,7 @@ function renderHome() {
   renderDragonGrid();
   renderArtifactPanel();
   renderEquipmentGrid();
+  renderSkillLoadoutPanel();
   renderStoryPanel();
   renderStageGrid();
 }
@@ -1756,6 +1801,46 @@ function renderEquipmentGrid() {
       spacer.className = "hex-break";
       ui.equipmentGrid.append(spacer);
     }
+  }
+}
+
+function renderSkillLoadoutPanel() {
+  if (!ui.skillLoadoutGrid || !ui.skillLoadoutText) return;
+
+  const selectedIds = normalizeSkillLoadout(state.meta);
+  const selectedSet = new Set(selectedIds);
+  const limit = skillLoadoutLimit();
+  ui.skillLoadoutText.textContent = `戰術 ${selectedIds.length}/${limit}`;
+  ui.skillLoadoutGrid.innerHTML = "";
+
+  for (const skill of RUN_SKILLS) {
+    const selected = selectedSet.has(skill.id);
+    const full = !selected && selectedIds.length >= limit;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.disabled = full;
+    button.className = `skill-loadout-card${selected ? " is-selected" : ""}${full ? " is-locked" : ""}`;
+    button.innerHTML = `
+      <span class="skill-rune">${skill.icon}</span>
+      <span class="skill-copy">
+        <strong>${skill.title}</strong>
+        <em>${skill.element} · ${skill.detail}</em>
+        <span>${selected ? "已裝備" : full ? "槽位已滿" : "候補"}</span>
+      </span>
+    `;
+    button.addEventListener("click", () => {
+      const current = normalizeSkillLoadout(state.meta);
+      if (current.includes(skill.id)) {
+        if (current.length <= 1) return;
+        state.meta.skillLoadoutIds = current.filter((id) => id !== skill.id);
+      } else if (current.length < skillLoadoutLimit()) {
+        state.meta.skillLoadoutIds = [...current, skill.id];
+      }
+      normalizeSkillLoadout(state.meta);
+      saveMeta();
+      renderHome();
+    });
+    ui.skillLoadoutGrid.append(button);
   }
 }
 
@@ -2133,6 +2218,7 @@ function resetRun() {
     runeGuard: 0,
     eliteHunter: 0,
   };
+  applyLoadoutSeedSkills();
   input.target = { x: state.player.x, y: state.player.y };
   input.absorbing = false;
   ui.startOverlay.classList.remove("active");
@@ -5046,6 +5132,14 @@ function applyRunSkill(skill) {
   renderSkillHud();
 }
 
+function applyLoadoutSeedSkills() {
+  for (const skill of selectedRunSkills()) {
+    if (!skill || (state.runSkills[skill.id] || 0) > 0) continue;
+    state.runSkills[skill.id] = 1;
+    skill.apply(1);
+  }
+}
+
 function openUpgrade() {
   state.mode = "upgrade";
   input.absorbing = false;
@@ -5053,9 +5147,12 @@ function openUpgrade() {
   ui.upgradeChoices.innerHTML = "";
   state.nextUpgrade += 10 + Math.floor(state.nextUpgrade / 18) * 2;
 
-  const choices = RUN_SKILLS.filter((skill) => (state.runSkills[skill.id] || 0) < skill.max)
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 3);
+  const loadoutSet = new Set(normalizeSkillLoadout(state.meta));
+  const available = RUN_SKILLS.filter((skill) => (state.runSkills[skill.id] || 0) < skill.max);
+  const preferred = available.filter((skill) => loadoutSet.has(skill.id)).sort(() => Math.random() - 0.5);
+  const rest = available.filter((skill) => !loadoutSet.has(skill.id)).sort(() => Math.random() - 0.5);
+  const preferredCount = Math.min(2, preferred.length);
+  const choices = [...preferred.slice(0, preferredCount), ...rest, ...preferred.slice(preferredCount)].slice(0, 3);
   if (!choices.length) {
     state.mode = "playing";
     return;
@@ -5217,6 +5314,7 @@ ui.skillButton.addEventListener("click", () => {
   if (state.meta.scales < cost) return;
   state.meta.scales -= cost;
   state.meta.skillLevel += 1;
+  normalizeSkillLoadout(state.meta);
   saveMeta();
   renderHome();
 });
