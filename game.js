@@ -91,7 +91,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "62";
+const ASSET_VERSION = "63";
 const COMBAT_TUNING = {
   tailSway: 0.28,
   tailLift: 0.36,
@@ -128,6 +128,14 @@ const STAGE_ENVIRONMENT_VARIANTS = [
   { id: "shardRain", name: "浮岩碎雨" },
   { id: "eclipseCore", name: "蝕月核心" },
 ];
+const BOSS_TACTICS = {
+  valley: { id: "valley", name: "星核扇幕", tip: "看扇形缺口，吸中央星彈反吐" },
+  reef: { id: "reef", name: "潮泡迴環", tip: "泡環慢速擴散，先吃邊線再閃中心" },
+  forge: { id: "forge", name: "熔牙重砲", tip: "重彈傷害高，等預警後橫移吸收" },
+  spire: { id: "spire", name: "霆針鎖線", tip: "雷針速度快，跟著鎖線空隙切入" },
+  rift: { id: "rift", name: "裂隙回流", tip: "旋轉彈會回捲，保留吞噬槽反打" },
+  ritual: { id: "ritual", name: "龍王祭印", tip: "王庭會混合扇幕與環彈，分段吞噬" },
+};
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDxQqZWabxFJ0RWc5Xr3bVjBj1QctS4hGE",
   authDomain: "swallow-5407f.firebaseapp.com",
@@ -1659,6 +1667,11 @@ function stageEnvironmentVariant(stage) {
   return STAGE_ENVIRONMENT_VARIANTS[(index + chapterOffset) % STAGE_ENVIRONMENT_VARIANTS.length];
 }
 
+function bossTacticForStage(stage = selectedStage()) {
+  const key = stage?.backgroundId === DEFAULT_STAGE_BACKGROUND_ID ? "ritual" : stage?.artId || "valley";
+  return BOSS_TACTICS[key] || BOSS_TACTICS.valley;
+}
+
 function getStageBackgroundImage(stage) {
   const imageId = stageBackgroundId(stage);
   if (!stageBackgroundImageCache.has(imageId)) {
@@ -2145,6 +2158,7 @@ function openStageBriefing() {
   const artifact = artifactForDragon(dragon);
   const skills = selectedRunSkills();
   const skillText = skills.length ? skills.map((skill) => skill.title).join(" / ") : "未配置";
+  const bossTactic = bossTacticForStage(stage);
 
   hideSummonResult();
   ui.stageBriefLabel.textContent = `第${stage.chapter}章 · ${stage.chapterTitle}`;
@@ -2155,6 +2169,8 @@ function openStageBriefing() {
     `${stage.waves}波`,
     `每波${stage.waveSeconds}秒`,
     `Boss：${stage.boss}`,
+    `Boss招式：${bossTactic.name}`,
+    bossTactic.tip,
     `建議戰力 ${stage.power}`,
     `環境：${stageEnvironmentVariant(stage).name}`,
     `獎勵 ${stage.gold}金 / ${stage.scales}晶`,
@@ -2654,12 +2670,15 @@ function spawnEnemy(kind = "normal") {
   };
 
   if (kind === "boss") {
+    const bossTactic = bossTacticForStage(state.currentStage);
     Object.assign(enemy, {
       type: "boss",
       r: 38,
       hp: 620 + wave * 82 + state.currentStage.power,
       speed: 18,
-      pattern: "fan",
+      pattern: bossTactic.id,
+      bossTactic: bossTactic.id,
+      bossTacticName: bossTactic.name,
       color: state.currentStage.theme,
       score: 1200,
       shoot: 0.7,
@@ -2718,6 +2737,7 @@ function spawnEnemy(kind = "normal") {
     state.currentBoss = enemy;
   }
   state.enemies.push(enemy);
+  return enemy;
 }
 
 function fireEnemyBullet(enemy, angle, speed, radius = 6, color = enemy.color) {
@@ -2738,10 +2758,59 @@ function fireEnemyBullet(enemy, angle, speed, radius = 6, color = enemy.color) {
   });
 }
 
+function bossShoot(enemy, angleToPlayer, speed) {
+  const tactic = BOSS_TACTICS[enemy.bossTactic] || bossTacticForStage(state.currentStage);
+  const color = enemy.color || state.currentStage.theme;
+  const alt = state.currentStage?.bg?.[2] || "#ffd166";
+  const pulse = Math.sin(state.time * 1.4 + enemy.phase);
+
+  if (tactic.id === "reef") {
+    for (let i = -3; i <= 3; i += 1) {
+      fireEnemyBullet(enemy, Math.PI / 2 + i * 0.12 + pulse * 0.04, speed * (0.82 + Math.abs(i) * 0.04), i % 2 ? 6 : 8, i % 2 ? color : "#7defff");
+    }
+    fireEnemyBullet(enemy, angleToPlayer, speed * 0.72, 9, alt);
+  } else if (tactic.id === "forge") {
+    for (const offset of [-0.18, 0, 0.18]) {
+      fireEnemyBullet(enemy, angleToPlayer + offset, speed * 1.05, 9, offset ? color : "#ffb84d");
+    }
+    for (const side of [-1, 1]) {
+      fireEnemyBullet(enemy, Math.PI / 2 + side * (0.42 + pulse * 0.04), speed * 0.86, 7, alt);
+    }
+  } else if (tactic.id === "spire") {
+    for (const offset of [-0.3, -0.15, 0, 0.15, 0.3]) {
+      fireEnemyBullet(enemy, angleToPlayer + offset, speed * 1.18, 5.4, offset ? color : "#fff4c5");
+    }
+    fireEnemyBullet(enemy, Math.PI / 2 + pulse * 0.1, speed * 1.28, 6, alt);
+  } else if (tactic.id === "rift") {
+    const spin = state.time * 1.1 + enemy.phase;
+    for (let i = 0; i < 7; i += 1) {
+      fireEnemyBullet(enemy, spin + i * TAU / 7, speed * 0.72, i % 2 ? 6 : 8, i % 2 ? color : "#c084fc");
+    }
+    fireEnemyBullet(enemy, angleToPlayer + pulse * 0.22, speed * 0.92, 7, alt);
+  } else if (tactic.id === "ritual") {
+    for (const offset of [-0.44, -0.22, 0, 0.22, 0.44]) {
+      fireEnemyBullet(enemy, angleToPlayer + offset, speed * 0.94, Math.abs(offset) < 0.05 ? 9 : 7, offset ? color : "#ffd166");
+    }
+    for (let i = 0; i < 5; i += 1) {
+      fireEnemyBullet(enemy, Math.PI / 2 + (i - 2) * 0.2 + pulse * 0.06, speed * 0.78, 6, i % 2 ? alt : color);
+    }
+  } else {
+    for (const offset of [-0.48, -0.3, -0.12, 0.12, 0.3, 0.48]) {
+      fireEnemyBullet(enemy, angleToPlayer + offset, speed * (0.88 + Math.abs(offset) * 0.18), 7, offset < 0 ? color : alt);
+    }
+    fireEnemyBullet(enemy, angleToPlayer + pulse * 0.1, speed * 1.02, 8, "#fff4c5");
+  }
+}
+
 function enemyShoot(enemy) {
   const player = state.player;
   const angleToPlayer = Math.atan2(player.y - enemy.y, player.x - enemy.x);
   const speed = 145 + state.wave * 9;
+
+  if (enemy.kind === "boss") {
+    bossShoot(enemy, angleToPlayer, speed);
+    return;
+  }
 
   if (enemy.pattern === "fan") {
     for (const offset of [-0.48, -0.24, 0, 0.24, 0.48]) {
@@ -3842,9 +3911,9 @@ function update(dt) {
   }
 
   if (!state.bossSpawned && state.stageElapsed >= totalStageSeconds) {
-    spawnEnemy("boss");
+    const boss = spawnEnemy("boss");
     state.bossSpawned = true;
-    showWaveBanner("Boss 來襲");
+    showWaveBanner(`${boss?.bossTacticName || "Boss"} 來襲`);
     state.spawnTimer = 2.0;
   } else if (!state.bossSpawned && state.elitesSpawned < state.currentStage.waves - 1) {
     const eliteWave = state.elitesSpawned + 2;
