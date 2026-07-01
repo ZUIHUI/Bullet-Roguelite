@@ -1639,6 +1639,91 @@ h2 {
   opacity: 0.5;
 }
 
+.skill-resonance-guide {
+  display: grid;
+  gap: 7px;
+}
+
+.resonance-card {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  min-height: 58px;
+  padding: 8px;
+  border: 1px solid rgba(66, 239, 210, 0.14);
+  border-radius: 8px;
+  color: var(--text);
+  background:
+    linear-gradient(135deg, rgba(66, 239, 210, 0.08), rgba(255, 209, 102, 0.04)),
+    rgba(3, 8, 12, 0.58);
+  text-align: left;
+}
+
+.resonance-rune {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 10px;
+  color: #06100f;
+  background: linear-gradient(135deg, var(--gold), var(--aqua));
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.resonance-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.resonance-copy strong,
+.resonance-copy em,
+.resonance-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resonance-copy strong {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.72rem;
+}
+
+.resonance-copy em,
+.resonance-copy small {
+  color: rgba(247, 251, 255, 0.62);
+  font-size: 0.58rem;
+  font-style: normal;
+  line-height: 1.2;
+}
+
+.resonance-status {
+  justify-self: end;
+  min-width: 52px;
+  padding: 5px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--gold) 78%, var(--text));
+  background: rgba(255, 255, 255, 0.055);
+  font-size: 0.58rem;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+}
+
+.resonance-card.is-active {
+  border-color: rgba(66, 239, 210, 0.76);
+  box-shadow: 0 0 22px rgba(66, 239, 210, 0.12);
+}
+
+.resonance-card.is-locked {
+  opacity: 0.62;
+}
+
 .hex-equipment-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

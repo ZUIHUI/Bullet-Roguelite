@@ -67,6 +67,7 @@ const ui = {
   skillText: document.querySelector("#skillText"),
   skillLoadoutText: document.querySelector("#skillLoadoutText"),
   skillLoadoutGrid: document.querySelector("#skillLoadoutGrid"),
+  skillResonanceGuide: document.querySelector("#skillResonanceGuide"),
   summonButton: document.querySelector("#summonButton"),
   summonText: document.querySelector("#summonText"),
   summonResultLabel: document.querySelector("#summonResultLabel"),
@@ -96,7 +97,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "71";
+const ASSET_VERSION = "72";
 const COMBAT_TUNING = {
   tailSway: 0.17,
   tailLift: 0.24,
@@ -2086,6 +2087,56 @@ function renderSkillLoadoutPanel() {
       renderHome();
     });
     ui.skillLoadoutGrid.append(button);
+  }
+
+  renderSkillResonanceGuide();
+}
+
+function renderSkillResonanceGuide() {
+  if (!ui.skillResonanceGuide) return;
+
+  const selectedIds = normalizeSkillLoadout(state.meta);
+  const selectedSet = new Set(selectedIds);
+  const limit = skillLoadoutLimit();
+  ui.skillResonanceGuide.innerHTML = "";
+
+  for (const resonance of SKILL_RESONANCES) {
+    const requiredSkills = resonance.requires.map((id) => RUN_SKILL_BY_ID.get(id)).filter(Boolean);
+    const missingSkills = requiredSkills.filter((skill) => !selectedSet.has(skill.id));
+    const active = missingSkills.length === 0;
+    const enoughSlots = resonance.requires.length <= limit;
+    const partial = !active && enoughSlots && missingSkills.length < requiredSkills.length;
+    const status = active ? "已配置" : !enoughSlots ? `需要 ${resonance.requires.length} 格` : partial ? `缺 ${missingSkills.map((skill) => skill.title).join("、")}` : "可配置";
+    const requiredText = requiredSkills.map((skill) => `${skill.icon} ${skill.title}`).join(" + ");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `resonance-card${active ? " is-active" : ""}${!enoughSlots ? " is-locked" : ""}`;
+    button.innerHTML = `
+      <span class="resonance-rune">${resonance.icon}</span>
+      <span class="resonance-copy">
+        <strong>${resonance.title}</strong>
+        <em>${requiredText}</em>
+        <small>${resonance.detail}</small>
+      </span>
+      <span class="resonance-status">${status}</span>
+    `;
+    button.addEventListener("click", () => {
+      const current = normalizeSkillLoadout(state.meta);
+      if (resonance.requires.length > skillLoadoutLimit()) {
+        showWaveBanner("先升級技能研究開更多戰術槽");
+        return;
+      }
+      const next = [
+        ...resonance.requires,
+        ...current.filter((id) => !resonance.requires.includes(id)),
+      ].slice(0, skillLoadoutLimit());
+      state.meta.skillLoadoutIds = next;
+      normalizeSkillLoadout(state.meta);
+      saveMeta();
+      renderHome();
+      showWaveBanner(`${resonance.title} 已排入戰術`);
+    });
+    ui.skillResonanceGuide.append(button);
   }
 }
 
