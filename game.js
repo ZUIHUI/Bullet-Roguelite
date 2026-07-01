@@ -96,7 +96,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "70";
+const ASSET_VERSION = "71";
 const COMBAT_TUNING = {
   tailSway: 0.17,
   tailLift: 0.24,
@@ -106,6 +106,15 @@ const COMBAT_TUNING = {
   playerShotCooldown: 1.38,
   absorbShotDamage: 0.56,
   absorbShotCooldown: 1.12,
+  absorbReachBoost: 1.28,
+  absorbWidthBoost: 1.32,
+  absorbEdgeGrace: 0.82,
+  absorbMouthRadius: 38,
+  absorbMouthBulletGrace: 1.08,
+  absorbSnapBonus: 14,
+  absorbPullStrength: 0.88,
+  baseSwallowLength: 88,
+  baseSwallowWidth: 30,
   breathShotDamage: 0.32,
   breathBeamDamage: 0.22,
   ultimateDamage: 0.25,
@@ -2442,8 +2451,8 @@ const state = {
     shotCooldown: 0.17 * COMBAT_TUNING.playerShotCooldown,
     shotTimer: 0,
     shotSpread: 1,
-    swallowLength: 94,
-    swallowWidth: 34,
+    swallowLength: COMBAT_TUNING.baseSwallowLength,
+    swallowWidth: COMBAT_TUNING.baseSwallowWidth,
     storedBonus: 0,
     counterMult: 1,
     chainZap: 0,
@@ -2521,8 +2530,8 @@ function resetRun() {
     shotCooldown: ((state.currentForm.id === "swift" ? 0.145 : 0.17) / stats.speed) * COMBAT_TUNING.playerShotCooldown,
     shotTimer: 0,
     shotSpread: 1,
-    swallowLength: 94 * stats.swallow,
-    swallowWidth: 34 * stats.swallow,
+    swallowLength: COMBAT_TUNING.baseSwallowLength * stats.swallow,
+    swallowWidth: COMBAT_TUNING.baseSwallowWidth * stats.swallow,
     storedBonus: 0,
     counterMult: stats.counter,
     splashBurn: 0,
@@ -2697,10 +2706,10 @@ function addSwallowBurst(x, y, color) {
 function getMawZone() {
   const player = state.player;
   const form = state.currentForm || selectedForm();
-  const formReach = form.id === "devour" ? 1.1 : form.id === "swift" ? 0.96 : 1;
-  const formWidth = form.id === "devour" ? 1.14 : form.id === "flare" ? 0.94 : 1;
-  const rangeBoost = input.absorbing ? 1.44 * formReach : 1;
-  const widthBoost = input.absorbing ? 1.62 * formWidth : 1;
+  const formReach = form.id === "devour" ? 1.08 : form.id === "swift" ? 0.95 : 1;
+  const formWidth = form.id === "devour" ? 1.1 : form.id === "flare" ? 0.92 : 1;
+  const rangeBoost = input.absorbing ? COMBAT_TUNING.absorbReachBoost * formReach : 1;
+  const widthBoost = input.absorbing ? COMBAT_TUNING.absorbWidthBoost * formWidth : 1;
   const length = state.upgrades.swallowLength * rangeBoost;
   const width = state.upgrades.swallowWidth * widthBoost;
   return {
@@ -2714,12 +2723,12 @@ function getMawZone() {
 function getMawHit(bullet) {
   const maw = getMawZone();
   const ahead = maw.y - bullet.y;
-  if (ahead < -34 - bullet.r || ahead > maw.length + bullet.r * 2) return null;
+  if (ahead < -26 - bullet.r || ahead > maw.length + bullet.r * 1.35) return null;
 
   const progress = clamp(ahead / maw.length, 0, 1);
-  const halfWidth = maw.width * (0.7 + progress * 0.9);
+  const halfWidth = maw.width * (0.62 + progress * 0.78);
   const lateral = Math.abs(bullet.x - maw.x);
-  if (lateral > halfWidth + bullet.r * 1.35) return null;
+  if (lateral > halfWidth + bullet.r * COMBAT_TUNING.absorbEdgeGrace) return null;
 
   const mouthDistance = Math.hypot(bullet.x - maw.x, bullet.y - maw.y);
   return {
@@ -2727,9 +2736,15 @@ function getMawHit(bullet) {
     progress,
     lateral,
     halfWidth,
-    pull: clamp(1 - ahead / maw.length, 0.58, 1.15),
+    pull: clamp(1 - ahead / maw.length, 0.42, 1.05),
     mouthDistance,
   };
+}
+
+function swallowCaptureDistance(bullet, snap = bullet.absorbSnap || 0) {
+  return COMBAT_TUNING.absorbMouthRadius +
+    bullet.r * COMBAT_TUNING.absorbMouthBulletGrace +
+    snap * COMBAT_TUNING.absorbSnapBonus;
 }
 
 function bulletTouchesPlayerBody(bullet, player) {
@@ -3929,12 +3944,15 @@ function updateBullets(dt) {
         const tangentX = -dy / distance;
         const tangentY = dx / distance;
         const vortexSide = bullet.vortexSide || (Math.random() < 0.5 ? -1 : 1);
-        const vortexGrip = clamp(1 - hit.mouthDistance / Math.max(152, hit.maw.width * 3.35), 0.46, 1);
-        const mouthSnap = 1 - smoothstep(42 + bullet.r, Math.max(136, hit.maw.width * 2.7), hit.mouthDistance);
-        const pull = (2450 + state.wave * 48) * (0.9 + hit.pull * 1.12) * (1 + vortexGrip * 1.05 + mouthSnap * 1.82);
-        const swirl = vortexSide * (560 + hit.progress * 360 + hit.pull * 330) * vortexGrip * (1 - mouthSnap * 0.28);
+        const vortexGrip = clamp(1 - hit.mouthDistance / Math.max(108, hit.maw.width * 2.55), 0.3, 1);
+        const mouthSnap = 1 - smoothstep(34 + bullet.r, Math.max(82, hit.maw.width * 2.15), hit.mouthDistance);
+        const pull = (2180 + state.wave * 42) *
+          (0.72 + hit.pull * 1.05) *
+          (1 + vortexGrip * 0.82 + mouthSnap * 1.7) *
+          COMBAT_TUNING.absorbPullStrength;
+        const swirl = vortexSide * (480 + hit.progress * 300 + hit.pull * 260) * vortexGrip * (1 - mouthSnap * 0.22);
         bullet.vortexSide = vortexSide;
-        bullet.absorbT = clamp(Math.max(bullet.absorbT || 0, 0.46) + dt * (13 + hit.pull * 14 + vortexGrip * 6), 0, 1);
+        bullet.absorbT = clamp(Math.max(bullet.absorbT || 0, 0.38) + dt * (10 + hit.pull * 12 + vortexGrip * 5), 0, 1);
         bullet.absorbProgress = hit.progress;
         bullet.absorbWidth = hit.halfWidth;
         bullet.absorbMouthDistance = hit.mouthDistance;
@@ -3946,7 +3964,7 @@ function updateBullets(dt) {
         bullet.vx *= 1 - dt * 0.1;
         bullet.vy *= 1 - dt * 0.1;
         const speed = Math.hypot(bullet.vx, bullet.vy);
-        const maxSwallowSpeed = 1520 + hit.pull * 820 + mouthSnap * 1120;
+        const maxSwallowSpeed = 1350 + hit.pull * 740 + mouthSnap * 980;
         if (speed > maxSwallowSpeed) {
           const scale = maxSwallowSpeed / speed;
           bullet.vx *= scale;
@@ -3954,7 +3972,7 @@ function updateBullets(dt) {
         }
         bullet.spin += dt * vortexSide * (18 + hit.pull * 24 + mouthSnap * 18);
 
-        if (hit.mouthDistance < 48 + bullet.r * 1.4 + mouthSnap * 22) {
+        if (hit.mouthDistance < swallowCaptureDistance(bullet, mouthSnap)) {
           storeBullet(bullet);
           state.bullets.splice(i, 1);
           continue;
@@ -3967,7 +3985,7 @@ function updateBullets(dt) {
 
     if (input.absorbing) {
       const hit = getMawHit(bullet);
-      if (hit && hit.mouthDistance < 48 + bullet.r * 1.4 + (bullet.absorbSnap || 0) * 22) {
+      if (hit && hit.mouthDistance < swallowCaptureDistance(bullet)) {
         storeBullet(bullet);
         state.bullets.splice(i, 1);
         continue;
