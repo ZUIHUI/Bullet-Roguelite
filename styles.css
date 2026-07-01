@@ -207,6 +207,16 @@ button {
   gap: 3px;
 }
 
+.skill-chip.resonance {
+  border-color: rgba(255, 209, 102, 0.48);
+  background: linear-gradient(135deg, rgba(255, 209, 102, 0.22), rgba(66, 239, 210, 0.16)), rgba(5, 7, 13, 0.72);
+  box-shadow: 0 0 18px rgba(255, 209, 102, 0.12);
+}
+
+.skill-chip.resonance span {
+  color: #ffd166;
+}
+
 .skill-chip strong {
   font-size: 0.78rem;
   line-height: 1;

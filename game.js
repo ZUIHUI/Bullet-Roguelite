@@ -96,7 +96,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "66";
+const ASSET_VERSION = "67";
 const COMBAT_TUNING = {
   tailSway: 0.17,
   tailLift: 0.24,
@@ -986,6 +986,54 @@ const RUN_SKILLS = [
 const DEFAULT_SKILL_LOADOUT_IDS = ["wideMaw"];
 const MAX_SKILL_LOADOUT_SLOTS = 3;
 const RUN_SKILL_BY_ID = new Map(RUN_SKILLS.map((skill) => [skill.id, skill]));
+const SKILL_RESONANCES = [
+  {
+    id: "magmaStorm",
+    icon: "熔",
+    title: "熔雷爆鳴",
+    element: "火雷",
+    detail: "火焰濺射會引發雷弧爆鳴",
+    requires: ["flameOrbit", "chainStorm"],
+  },
+  {
+    id: "frostBulwark",
+    icon: "壁",
+    title: "霜盾領域",
+    element: "冰盾",
+    detail: "受擊時擴散冰霜緩速",
+    requires: ["frostBite", "runeGuard"],
+  },
+  {
+    id: "devourBloom",
+    icon: "花",
+    title: "吞魂花潮",
+    element: "吞魂",
+    detail: "擊破敵人會額外回補吞噬能量",
+    requires: ["wideMaw", "soulHarvest"],
+  },
+  {
+    id: "counterMatrix",
+    icon: "矩",
+    title: "反吐矩陣",
+    element: "反擊",
+    detail: "反吐彈獲得穿透與微連鎖",
+    requires: ["dragonBelly", "counterCore"],
+  },
+];
+const SKILL_RESONANCE_BY_ID = new Map(SKILL_RESONANCES.map((resonance) => [resonance.id, resonance]));
+
+function skillLevel(id) {
+  return state.runSkills[id] || 0;
+}
+
+function activeSkillResonances() {
+  return SKILL_RESONANCES.filter((resonance) => resonance.requires.every((id) => skillLevel(id) > 0));
+}
+
+function hasSkillResonance(id) {
+  const resonance = SKILL_RESONANCE_BY_ID.get(id);
+  return Boolean(resonance && resonance.requires.every((skillId) => skillLevel(skillId) > 0));
+}
 
 function skillLoadoutLimit(meta = state.meta) {
   const researchLevel = Number(meta?.skillLevel || 0);
@@ -3311,6 +3359,7 @@ function releaseBreath() {
     : Array.from({ length: fallbackCount }, () => ({ color: "#ffd166", power: 8, radius: 6 }));
   const count = Math.min(payload.length, 12 + state.upgrades.storedBonus);
   const counterShape = dragonProjectileShape(state.currentDragon?.id);
+  const matrixActive = hasSkillResonance("counterMatrix");
 
   for (let i = 0; i < count; i += 1) {
     const item = payload[i];
@@ -3322,11 +3371,14 @@ function releaseBreath() {
       vx: Math.sin(spread) * 180,
       vy: -460 - charge * 1.2,
       r: 7 + item.radius * 0.22,
-      damage: (state.upgrades.shotDamage + item.power * 5.8 + charge * 0.22) * state.upgrades.counterMult * COMBAT_TUNING.breathShotDamage,
+      damage: (state.upgrades.shotDamage + item.power * 5.8 + charge * 0.22) * state.upgrades.counterMult * COMBAT_TUNING.breathShotDamage * (matrixActive ? 1.05 : 1),
       color: item.color,
       homing: true,
-      turn: 5.2,
+      turn: matrixActive ? 6.4 : 5.2,
       life: 2.6,
+      pierce: matrixActive ? 1 : 0,
+      chainRadius: matrixActive ? 44 : 0,
+      chainDamage: matrixActive ? 0.14 : 0,
       shape: counterShape,
       impact: counterShape,
       trail: counterShape,
@@ -3625,6 +3677,14 @@ function defeatEnemy(enemy) {
     state.player.hp = Math.min(state.player.maxHp, state.player.hp + harvestLevel * 0.035 * harvestPower);
     addParticles(enemy.x, enemy.y, 6 + harvestLevel, "#77f5a6", 150);
   }
+  if (hasSkillResonance("devourBloom")) {
+    const resonancePower = enemy.kind === "boss" ? 4 : enemy.kind === "elite" ? 2 : 1;
+    const resonanceLevel = skillLevel("wideMaw") + skillLevel("soulHarvest");
+    state.player.charge = clamp(state.player.charge + resonancePower * (0.8 + resonanceLevel * 0.12), 0, state.player.maxCharge);
+    addUltimateCharge(resonancePower * (0.36 + resonanceLevel * 0.05));
+    addSwallowBurst(enemy.x, enemy.y, "#ff9ecf");
+    addParticles(enemy.x, enemy.y, 5 + resonanceLevel, "#ff9ecf", 120);
+  }
   addParticles(enemy.x, enemy.y, enemy.type === "brute" ? 30 : 18, enemy.color, 190);
   if (state.currentDragon?.id === "jade") {
     state.player.hp = Math.min(state.player.maxHp, state.player.hp + 0.15);
@@ -3653,6 +3713,18 @@ function damagePlayer(amount) {
   if (equipGuard) {
     amount = Math.max(0.35, amount * (1 - equipGuard * 0.035));
     addParticles(player.x, player.y - 4, 4 + equipGuard, "#77f5a6", 120);
+  }
+  if (hasSkillResonance("frostBulwark")) {
+    const frostPower = skillLevel("frostBite") + skillLevel("runeGuard");
+    const frostRadius = 86 + frostPower * 7;
+    for (const enemy of state.enemies) {
+      if (dist2(enemy.x, enemy.y, player.x, player.y) < frostRadius ** 2) {
+        enemy.chill = Math.max(enemy.chill || 0, enemy.kind === "boss" ? 0.58 : 0.9);
+        enemy.shoot += enemy.kind === "boss" ? 0.12 : 0.24;
+      }
+    }
+    absorbOrShatterBullets(player.x, player.y, 42 + frostPower * 4, false, "#d8f7ff");
+    addParticles(player.x, player.y - 12, 8 + frostPower, "#d8f7ff", 135);
   }
   player.hp -= amount;
   player.invulnerable = 1.05 + guardLevel * 0.08 + equipGuard * 0.03;
@@ -3899,7 +3971,7 @@ function updateShots(dt) {
         if (chainRadius) {
           let chains = 0;
           const maxChains = shot.chainRadius ? 3 : 1 + Math.min(3, chainLevel);
-          const chainDamage = shot.chainRadius ? 0.28 : 0.15 + chainLevel * 0.04;
+          const chainDamage = shot.chainDamage ?? (shot.chainRadius ? 0.28 : 0.15 + chainLevel * 0.04);
           for (const nearby of state.enemies) {
             if (nearby !== enemy && chains < maxChains && dist2(enemy.x, enemy.y, nearby.x, nearby.y) < chainRadius ** 2) {
               damageEnemy(nearby, shot.damage * chainDamage, shot.color);
@@ -3907,6 +3979,23 @@ function updateShots(dt) {
               chains += 1;
               addParticles(nearby.x, nearby.y, 5, shot.color, 130);
             }
+          }
+        }
+        if (hasSkillResonance("magmaStorm") && (shot.burn || shot.shape === "fire" || shot.impact === "fire")) {
+          const resonanceLevel = skillLevel("flameOrbit") + skillLevel("chainStorm");
+          const stormRadius = 68 + resonanceLevel * 5;
+          let stormHits = 0;
+          for (const nearby of state.enemies) {
+            if (nearby !== enemy && stormHits < 2 && dist2(enemy.x, enemy.y, nearby.x, nearby.y) < stormRadius ** 2) {
+              damageEnemy(nearby, shot.damage * (0.08 + resonanceLevel * 0.012), "#ffd166");
+              nearby.jolt = Math.max(nearby.jolt || 0, 0.2);
+              nearby.shoot += 0.06;
+              stormHits += 1;
+              addParticles(nearby.x, nearby.y, 5, "#ffd166", 140);
+            }
+          }
+          if (stormHits) {
+            addParticles(enemy.x, enemy.y, 8, "#ffb84d", 150);
           }
         }
         applyShotImpact(shot, enemy);
@@ -4083,6 +4172,12 @@ function renderSkillHud() {
     const chip = document.createElement("span");
     chip.className = "skill-chip active";
     chip.innerHTML = `<span>${skill.element}</span><strong>${skill.title} ${level}</strong>`;
+    ui.skillHud.append(chip);
+  }
+  for (const resonance of activeSkillResonances()) {
+    const chip = document.createElement("span");
+    chip.className = "skill-chip active resonance";
+    chip.innerHTML = `<span>${resonance.element}</span><strong>${resonance.title}</strong>`;
     ui.skillHud.append(chip);
   }
 }
@@ -5802,10 +5897,15 @@ function draw() {
 }
 
 function applyRunSkill(skill) {
+  const previousResonances = new Set(activeSkillResonances().map((resonance) => resonance.id));
   const nextLevel = (state.runSkills[skill.id] || 0) + 1;
   state.runSkills[skill.id] = nextLevel;
   skill.apply(nextLevel);
   renderSkillHud();
+  const unlocked = activeSkillResonances().find((resonance) => !previousResonances.has(resonance.id));
+  if (unlocked) {
+    showWaveBanner(`技能共鳴：${unlocked.title}`);
+  }
 }
 
 function applyLoadoutSeedSkills() {
