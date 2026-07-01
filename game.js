@@ -91,7 +91,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "63";
+const ASSET_VERSION = "64";
 const COMBAT_TUNING = {
   tailSway: 0.28,
   tailLift: 0.36,
@@ -1414,6 +1414,10 @@ function getArtifactMeta(artifact = selectedArtifact()) {
   return state.meta.artifacts[artifact.id];
 }
 
+function artifactUltimateUnlocked(artifact = selectedArtifact()) {
+  return Boolean(getArtifactMeta(artifact)?.unlocked);
+}
+
 function selectedDragon() {
   if (!state.meta) return DRAGONS[0];
   return DRAGONS.find((dragon) => dragon.id === state.meta.selectedDragonId) || DRAGONS[0];
@@ -2033,7 +2037,7 @@ function renderArtifactPanel() {
     : `啟動 ${artifact.cost}晶`;
   const artifactStatus = artifactMeta.unlocked
     ? `神器加成 Lv.${artifactMeta.level} · 專屬大絕強化中`
-    : "大絕會自動施放 · 尚未啟動神器加成";
+    : "專屬大絕封印中 · 啟動神器後才會自動施放";
 
   ui.artifactPanel.innerHTML = `
     <section class="artifact-detail">
@@ -2046,7 +2050,7 @@ function renderArtifactPanel() {
       </div>
       <p class="info-text">${dragon.ultimateName}：${dragon.ultimateDesc}</p>
       <p class="info-text">${artifactStatus}</p>
-      <p class="info-text">能量滿會自動施放；神器啟動後提升持續時間與傷害。</p>
+      <p class="info-text">${artifactMeta.unlocked ? "戰鬥中能量滿會自動施放；強化後提升持續時間與傷害。" : "戰鬥中仍可吞噬反吐；啟動神器後才會解放自動大絕。"}</p>
       <button id="artifactActionButton" class="primary-button" type="button">${unlockText}</button>
     </section>
     <div class="artifact-collection" aria-label="神器陣列">
@@ -2156,6 +2160,7 @@ function openStageBriefing() {
   const dragon = selectedDragon();
   const form = selectedForm(dragon);
   const artifact = artifactForDragon(dragon);
+  const artifactMeta = getArtifactMeta(artifact);
   const skills = selectedRunSkills();
   const skillText = skills.length ? skills.map((skill) => skill.title).join(" / ") : "未配置";
   const bossTactic = bossTacticForStage(stage);
@@ -2175,7 +2180,7 @@ function openStageBriefing() {
     `環境：${stageEnvironmentVariant(stage).name}`,
     `獎勵 ${stage.gold}金 / ${stage.scales}晶`,
     `${dragon.name} · ${form.name}`,
-    `${artifact.name}`,
+    `${artifact.name} · ${artifactMeta.unlocked ? `大絕 Lv.${artifactMeta.level}` : "大絕未解封"}`,
     `戰術 ${skillText}`,
   ].map((item) => `<span>${item}</span>`).join("");
   ui.stageBriefArt.style.backgroundImage = `linear-gradient(180deg, rgba(5, 7, 13, 0.08), rgba(5, 7, 13, 0.72)), url("${stageBackgroundImagePath(stage)}")`;
@@ -3240,10 +3245,17 @@ function tryActivateUltimate() {
   if (state.mode !== "playing" || state.ultimateCooldown > 0 || state.ultimateActive) return;
   const artifactMeta = getArtifactMeta(state.currentArtifact);
   if (!state.ultimateDemo && state.ultimateCharge < 100) return;
+  if (!state.ultimateDemo && !artifactUltimateUnlocked(state.currentArtifact)) {
+    state.ultimateCharge = 100;
+    state.ultimateCooldown = 2.8;
+    showWaveBanner(`啟動${state.currentArtifact.name}解鎖大絕`);
+    updateHud();
+    return;
+  }
 
   const player = state.player;
   const dragonId = state.currentDragon.id;
-  const artifactLevel = artifactMeta?.unlocked ? Math.max(1, artifactMeta.level || 1) : 0;
+  const artifactLevel = Math.max(1, artifactMeta?.level || 1);
   const duration = 4.4 + artifactLevel * 0.28;
   state.ultimateCharge = 0;
   state.ultimateCooldown = duration + 4.8;
