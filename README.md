@@ -13,6 +13,7 @@
 - 養成：龍強化、升星、龍影召喚、六角晶體裝備、技能研究、技能搭配、掛機收益領取都有最小可玩版本；搭配的戰術會在出戰時自帶 Lv.1，並提高局內升級選項出現率；局內湊齊指定技能組合時，HUD 會顯示技能共鳴並改變輸出、擊殺回能或受擊控場。
 - 美術：`assets/dragons-clean/dragon-*.png` 是從設定集整理出的透明底 UI 龍圖，`assets/dragons/` 保留原整理版；`assets/battle-dragons/battle-*.png` 是各龍專屬上帝視角戰鬥 CG；`assets/stage-backgrounds/` 內有溪谷、海礁、熔火、雷霜、虛空與祭壇直式戰鬥背景；`assets/artifacts/*.png` 是 10 件神器生成圖示；`assets/dragon-sheets/` 保留原設定集參考圖，`assets/visuals.svg` 保留作為關卡 sprite。
 - 標題徽章：主畫面不再顯示原本的圖片式標題 icon，改用 CSS 繪製的發光龍紋徽章。
+- 畫面穩定：戰鬥外框會用實際 viewport 高度同步 canvas，降低手機或內嵌瀏覽器底部溢出與畫面重複感。
 - 戰鬥表現：主畫面與龍卡使用設定集整理出的 PNG；關卡中的龍使用對應的 `battle-*.png` 俯視 CG，再由 canvas 做較收斂的飛行擺尾、分層呼吸、張嘴吸收、吸入漩渦風場、子彈捲入拖尾、能量環與反吐爆發動畫；10 種龍的普通攻擊有不同彈道、拖尾、命中狀態與反吐/大絕小彈形狀，整體輸出已下修以保留走位與吞彈壓力。
 - 敵人美術：小怪、快怪、重甲怪、菁英與 Boss 會依關卡主題色繪製成魂燈、翼刃、熔甲、祭司與龍王影等主視覺 skin。
 - 存檔：單人進度會寫入 Firebase Firestore `singlePlayerSaves/{gameId__anonymous_uid__slot}`；若 Anonymous Auth 尚未啟用，會暫時退回 `singlePlayerSaves/{gameId__device_deviceId__slot}`，並同步保留一份本機快取。啟用 Anonymous Auth 後會自動檢查同裝置舊的 device 備援文件，選擇本機、匿名雲端、裝置備援中進度較完整的一份寫回目前使用者文件。養成頁會顯示目前存檔來源、文件路徑與 owner key，方便在 Firebase console 對照不同使用者。

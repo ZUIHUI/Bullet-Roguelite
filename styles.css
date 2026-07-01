@@ -1,5 +1,6 @@
 :root {
   color-scheme: dark;
+  --app-height: 100svh;
   --ink: #05070d;
   --ink-2: #0d1020;
   --text: #f7fbff;
@@ -37,8 +38,9 @@ button {
 .game-shell {
   position: relative;
   width: min(100vw, 520px);
-  height: 100svh;
-  min-height: 560px;
+  height: var(--app-height, 100svh);
+  min-height: min(560px, var(--app-height, 100svh));
+  max-height: var(--app-height, 100svh);
   margin: 0 auto;
   overflow: hidden;
   background: var(--ink);
@@ -1860,7 +1862,7 @@ h2 {
 
 @media (max-height: 620px) {
   .game-shell {
-    min-height: 100svh;
+    min-height: var(--app-height, 100svh);
   }
 
   .title-sigil {

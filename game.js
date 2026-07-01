@@ -96,7 +96,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "67";
+const ASSET_VERSION = "68";
 const COMBAT_TUNING = {
   tailSway: 0.17,
   tailLift: 0.24,
@@ -2611,9 +2611,17 @@ function startUltimateDemo() {
   showWaveBanner("大絕測試");
 }
 
+function updateAppHeight() {
+  const viewportHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0;
+  if (viewportHeight > 0) {
+    document.documentElement.style.setProperty("--app-height", `${Math.round(viewportHeight)}px`);
+  }
+}
+
 function resize() {
+  updateAppHeight();
   const rect = canvas.getBoundingClientRect();
-  state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+  state.dpr = clamp(window.devicePixelRatio || 1, 1, 2);
   state.w = rect.width;
   state.h = rect.height;
   canvas.width = Math.round(rect.width * state.dpr);
@@ -6212,6 +6220,7 @@ window.addEventListener("keyup", (event) => {
 });
 
 window.addEventListener("resize", resize);
+window.visualViewport?.addEventListener("resize", resize);
 window.addEventListener("blur", () => {
   input.absorbing = false;
   input.absorbPointerId = null;
