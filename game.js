@@ -37,6 +37,7 @@ const ui = {
   bossName: document.querySelector("#bossNameText"),
   bossHpFill: document.querySelector("#bossHpFill"),
   skillHud: document.querySelector("#skillHud"),
+  missionTracker: document.querySelector("#missionTracker"),
   gold: document.querySelector("#goldText"),
   scales: document.querySelector("#scaleText"),
   idle: document.querySelector("#idleText"),
@@ -98,7 +99,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "76";
+const ASSET_VERSION = "77";
 const COMBAT_TUNING = {
   tailSway: 0.17,
   tailLift: 0.24,
@@ -4066,16 +4067,107 @@ function runStatRewards(baseRewards = [], performance = runPerformance()) {
   ];
 }
 
+function stageMissionTargets(stage = state.currentStage) {
+  if (!stage) return null;
+  const index = stageIndex(stage);
+  const waves = stage.waves || 10;
+  return {
+    kills: Math.max(18, Math.round(waves * 2.4 + index * 1.2)),
+    swallow: Math.max(10, Math.round(waves * 1.2 + index * 0.65)),
+    hits: Math.max(2, 5 - Math.floor(index / 6)),
+  };
+}
+
+function stageMissionItems(cleared = state.mode === "clear") {
+  const targets = stageMissionTargets();
+  if (!targets) return [];
+  const stats = state.runStats || createRunStats();
+  const bossProgress = cleared
+    ? 1
+    : state.currentBoss
+      ? 1 - clamp(state.currentBoss.hp / state.currentBoss.maxHp, 0, 1)
+      : 0;
+  return [
+    {
+      id: "kills",
+      label: "擊破",
+      value: `${Math.min(state.stageKills, targets.kills)}/${targets.kills}`,
+      progress: clamp(state.stageKills / targets.kills, 0, 1),
+      complete: state.stageKills >= targets.kills,
+    },
+    {
+      id: "swallow",
+      label: "吞彈",
+      value: `${Math.min(stats.swallowedBullets, targets.swallow)}/${targets.swallow}`,
+      progress: clamp(stats.swallowedBullets / targets.swallow, 0, 1),
+      complete: stats.swallowedBullets >= targets.swallow,
+    },
+    {
+      id: "guard",
+      label: "受擊",
+      value: `${stats.hitsTaken}/${targets.hits}`,
+      progress: clamp(1 - stats.hitsTaken / Math.max(1, targets.hits + 1), 0, 1),
+      complete: stats.hitsTaken <= targets.hits,
+      danger: stats.hitsTaken > targets.hits,
+    },
+    {
+      id: "boss",
+      label: "Boss",
+      value: cleared ? "已破" : state.bossSpawned ? "交戰" : "未現",
+      progress: bossProgress,
+      complete: cleared,
+    },
+  ];
+}
+
+function stageMissionSummary(cleared = false) {
+  const items = stageMissionItems(cleared);
+  const completed = items.filter((item) => item.complete).length;
+  const index = state.currentStage ? stageIndex(state.currentStage) : 0;
+  return {
+    items,
+    completed,
+    total: items.length,
+    bonusGold: cleared ? completed * (16 + Math.floor(index * 2.5)) : 0,
+    bonusScales: cleared ? Math.floor(completed / 2) + (completed === items.length ? 1 : 0) : 0,
+  };
+}
+
+function renderMissionTracker() {
+  if (!ui.missionTracker) return;
+  const visible = state.currentStage && (state.mode === "playing" || state.mode === "paused");
+  ui.missionTracker.hidden = !visible;
+  ui.missionTracker.replaceChildren();
+  if (!visible) return;
+
+  for (const item of stageMissionItems()) {
+    const chip = document.createElement("div");
+    chip.className = `mission-chip${item.complete ? " is-complete" : ""}${item.danger ? " is-danger" : ""}`;
+    chip.style.setProperty("--fill", `${Math.round(item.progress * 100)}%`);
+
+    const label = document.createElement("span");
+    label.textContent = item.label;
+    const value = document.createElement("strong");
+    value.textContent = item.value;
+    const meter = document.createElement("i");
+    meter.setAttribute("aria-hidden", "true");
+    chip.append(label, value, meter);
+    ui.missionTracker.append(chip);
+  }
+}
+
 function completeStage() {
   const stage = state.currentStage;
   const index = stageIndex(stage);
   const nextStage = STAGES[Math.min(index + 1, STAGES.length - 1)];
   const bonus = Math.floor(state.score / 100);
-  const totalGold = stage.gold + bonus;
   const hasNextStage = index < STAGES.length - 1;
   const performance = runPerformance(true);
-  state.meta.gold += stage.gold + bonus;
-  state.meta.scales += stage.scales;
+  const mission = stageMissionSummary(true);
+  const totalGold = stage.gold + bonus + mission.bonusGold;
+  const totalScales = stage.scales + mission.bonusScales;
+  state.meta.gold += totalGold;
+  state.meta.scales += totalScales;
   state.meta.highestStageIndex = Math.max(state.meta.highestStageIndex, Math.min(index + 1, STAGES.length - 1));
   state.meta.clearedStages[stage.id] = true;
   state.meta.selectedStageId = nextStage.id;
@@ -4087,6 +4179,7 @@ function completeStage() {
   input.absorbing = false;
   hideWaveBanner();
   updateBossHud();
+  renderMissionTracker();
   ui.endLabel.textContent = `${stage.id} CLEAR`;
   ui.endTitle.textContent = `${stage.chapterTitle}突破`;
   ui.finalScore.textContent = `分數 ${Math.floor(state.score).toLocaleString("zh-TW")}`;
@@ -4094,7 +4187,9 @@ function completeStage() {
     summary: `${stage.storyClear}\n${performance.title}`,
     rewards: runStatRewards([
       { label: "金幣", value: `+${totalGold}` },
-      { label: "龍晶", value: `+${stage.scales}` },
+      { label: "龍晶", value: `+${totalScales}` },
+      { label: "目標", value: `${mission.completed}/${mission.total}` },
+      { label: "目標賞金", value: `+${mission.bonusGold}金 / +${mission.bonusScales}晶` },
       { label: "擊破", value: `${state.stageKills}` },
       { label: hasNextStage ? "下一關" : "主線", value: hasNextStage ? nextStage.id : "暫告一段" },
     ], performance),
@@ -4131,6 +4226,7 @@ function showHome() {
   hideWaveBanner();
   updateBossHud();
   renderSkillHud();
+  renderMissionTracker();
   ui.restartButton.textContent = "重新開始";
   state.meta.idleGold += calculateIdleGold(state.meta.lastSeenAt);
   saveMeta();
@@ -4535,6 +4631,7 @@ function updateHud() {
   ui.hpFill.style.transform = `scaleX(${clamp(player.hp / player.maxHp, 0, 1)})`;
   ui.chargeFill.style.transform = `scaleX(${clamp(player.charge / player.maxCharge, 0, 1)})`;
   updateBossHud();
+  renderMissionTracker();
 }
 
 function drawBackground() {
@@ -6411,9 +6508,11 @@ function endRun() {
   input.absorbing = false;
   hideWaveBanner();
   updateBossHud();
+  renderMissionTracker();
   const partialGold = Math.floor(state.score / 180);
   const partialScales = Math.floor(state.stageKills / 12);
   const performance = runPerformance(false);
+  const mission = stageMissionSummary(false);
   state.meta.gold += partialGold;
   state.meta.scales += partialScales;
   saveMeta();
@@ -6425,6 +6524,7 @@ function endRun() {
     rewards: runStatRewards([
       { label: "金幣", value: `+${partialGold}` },
       { label: "龍晶", value: `+${partialScales}` },
+      { label: "目標", value: `${mission.completed}/${mission.total}` },
       { label: "擊破", value: `${state.stageKills}` },
       { label: "到達", value: `Wave ${state.wave}` },
     ], performance),

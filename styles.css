@@ -224,6 +224,79 @@ button {
   line-height: 1;
 }
 
+.mission-tracker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.mission-tracker[hidden] {
+  display: none;
+}
+
+.mission-chip {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  height: 36px;
+  padding: 6px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(5, 7, 13, 0.64);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16);
+}
+
+.mission-chip::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  width: var(--fill, 0%);
+  height: 3px;
+  background: linear-gradient(90deg, var(--aqua), var(--gold));
+  box-shadow: 0 0 12px rgba(66, 239, 210, 0.28);
+}
+
+.mission-chip span,
+.mission-chip strong {
+  position: relative;
+  z-index: 1;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.mission-chip span {
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+
+.mission-chip strong {
+  margin-top: 5px;
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.mission-chip.is-complete {
+  border-color: rgba(119, 245, 166, 0.44);
+  background: linear-gradient(135deg, rgba(119, 245, 166, 0.18), rgba(66, 239, 210, 0.1)), rgba(5, 7, 13, 0.7);
+}
+
+.mission-chip.is-complete strong {
+  color: #b9ffd1;
+}
+
+.mission-chip.is-danger {
+  border-color: rgba(255, 107, 107, 0.46);
+  background: linear-gradient(135deg, rgba(255, 107, 107, 0.2), rgba(5, 7, 13, 0.72));
+}
+
+.mission-chip.is-danger::before {
+  background: linear-gradient(90deg, #ff6b6b, #ffd166);
+}
+
 .wave-banner {
   position: absolute;
   z-index: 40;
