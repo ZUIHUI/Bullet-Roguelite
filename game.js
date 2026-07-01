@@ -25,6 +25,7 @@ const ui = {
   stageBriefStory: document.querySelector("#stageBriefStory"),
   stageBriefObjective: document.querySelector("#stageBriefObjective"),
   stageBriefMeta: document.querySelector("#stageBriefMeta"),
+  stageBriefPrep: document.querySelector("#stageBriefPrep"),
   upgradeChoices: document.querySelector("#upgradeChoices"),
   finalScore: document.querySelector("#finalScore"),
   endLabel: document.querySelector("#endLabel"),
@@ -97,7 +98,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "73";
+const ASSET_VERSION = "74";
 const COMBAT_TUNING = {
   tailSway: 0.17,
   tailLift: 0.24,
@@ -1820,6 +1821,43 @@ function enemyThemeColor(type, stage = state.currentStage || selectedStage()) {
   return skin.palette[index] || skin.palette[0] || stage?.theme || "#ff6b6b";
 }
 
+function stagePowerReadiness(stage, power) {
+  const ratio = power / Math.max(1, stage.power);
+  if (ratio >= 1.16) {
+    return { id: "over", label: "壓制", text: "戰力充足，重點放在吞彈效率與少受擊。" };
+  }
+  if (ratio >= 1) {
+    return { id: "ready", label: "可出戰", text: "戰力達標，Boss 招式與吸收節奏仍要看準。" };
+  }
+  if (ratio >= 0.86) {
+    return { id: "tense", label: "吃操作", text: "戰力略低，優先吸慢彈、保留移動空間。" };
+  }
+  return { id: "danger", label: "高風險", text: "建議先強化龍、裝備或技能槽再挑戰。" };
+}
+
+function plannedSkillResonances(skillIds = normalizeSkillLoadout(state.meta)) {
+  const selectedSet = new Set(skillIds);
+  return SKILL_RESONANCES.filter((resonance) => resonance.requires.every((id) => selectedSet.has(id)));
+}
+
+function stagePrepItems({ stage, dragon, form, artifact, artifactMeta, skills, bossTactic, power }) {
+  const readiness = stagePowerReadiness(stage, power);
+  const skillIds = skills.map((skill) => skill.id);
+  const resonances = plannedSkillResonances(skillIds);
+  const skillText = skills.length ? skills.map((skill) => skill.title).join(" / ") : "尚未配置";
+  const resonanceText = resonances.length ? resonances.map((item) => item.title).join(" / ") : "未成形";
+  const enemySkin = enemyThemeSkin(stage);
+  const artifactText = artifactMeta.unlocked ? `${artifact.name} Lv.${artifactMeta.level}` : `${artifact.name} 未解封`;
+  return [
+    { tone: readiness.id, label: "戰力", title: `${power} / ${stage.power}`, text: readiness.text },
+    { tone: "boss", label: "Boss", title: bossTactic.name, text: bossTactic.tip },
+    { tone: "reward", label: "獎勵", title: `${stage.gold} 金 / ${stage.scales} 晶`, text: `通關後推進 ${stage.id} 主線與養成資源。` },
+    { tone: "dragon", label: "出戰龍", title: `${dragon.name} · ${form.name}`, text: artifactText },
+    { tone: resonances.length ? "resonance" : "skill", label: "戰術", title: skillText, text: `共鳴：${resonanceText}` },
+    { tone: "enemy", label: "敵群", title: `${enemySkin.id} skin`, text: "敵人顏色、核心、角形與彈色會跟關卡主題變化。" },
+  ];
+}
+
 function getStageBackgroundImage(stage) {
   const imageId = stageBackgroundId(stage);
   if (!stageBackgroundImageCache.has(imageId)) {
@@ -2463,6 +2501,8 @@ function openStageBriefing() {
   const skills = selectedRunSkills();
   const skillText = skills.length ? skills.map((skill) => skill.title).join(" / ") : "未配置";
   const bossTactic = bossTacticForStage(stage);
+  const power = dragonPower(dragon);
+  const prepItems = stagePrepItems({ stage, dragon, form, artifact, artifactMeta, skills, bossTactic, power });
 
   hideSummonResult();
   ui.stageBriefLabel.textContent = `第${stage.chapter}章 · ${stage.chapterTitle}`;
@@ -2482,6 +2522,15 @@ function openStageBriefing() {
     `${artifact.name} · ${artifactMeta.unlocked ? `大絕 Lv.${artifactMeta.level}` : "大絕未解封"}`,
     `戰術 ${skillText}`,
   ].map((item) => `<span>${item}</span>`).join("");
+  if (ui.stageBriefPrep) {
+    ui.stageBriefPrep.innerHTML = prepItems.map((item) => `
+      <section class="prep-card prep-${item.tone}">
+        <span>${item.label}</span>
+        <strong>${item.title}</strong>
+        <em>${item.text}</em>
+      </section>
+    `).join("");
+  }
   ui.stageBriefArt.style.backgroundImage = `linear-gradient(180deg, rgba(5, 7, 13, 0.08), rgba(5, 7, 13, 0.72)), url("${stageBackgroundImagePath(stage)}")`;
   ui.stageBriefDragon.innerHTML = dragonArtMarkup(dragon, "stage-brief-dragon-art", dragon.name);
   ui.stageBriefOverlay.classList.add("active");
