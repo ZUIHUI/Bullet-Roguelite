@@ -13,7 +13,8 @@
 - 養成：龍強化、升星、龍影召喚、六角晶體裝備、技能研究、掛機收益領取都有最小可玩版本。
 - 美術：`assets/dragons-clean/dragon-*.png` 是從設定集整理出的透明底 UI 龍圖，`assets/dragons/` 保留原整理版；`assets/battle-dragons/battle-*.png` 是各龍專屬上帝視角戰鬥 CG；`assets/stage-backgrounds/` 內有溪谷、海礁、熔火、雷霜、虛空與祭壇直式戰鬥背景；`assets/artifacts/*.png` 是 10 件神器生成圖示；`assets/dragon-sheets/` 保留原設定集參考圖，`assets/visuals.svg` 保留作為關卡 sprite。
 - 戰鬥表現：主畫面與龍卡使用設定集整理出的 PNG；關卡中的龍使用對應的 `battle-*.png` 俯視 CG，再由 canvas 做飛行擺尾、分層呼吸、張嘴吸收、吸入漩渦風場、子彈捲入拖尾、能量環與反吐爆發動畫。
-- 存檔：單人進度會寫入 Firebase Firestore `singlePlayerSaves/{gameId__anonymous_uid__slot}`；若 Anonymous Auth 尚未啟用，會暫時退回 `singlePlayerSaves/{gameId__device_deviceId__slot}`，並同步保留一份本機快取。
+- 敵人美術：小怪、快怪、重甲怪、菁英與 Boss 會依關卡主題色繪製成魂燈、翼刃、熔甲、祭司與龍王影等主視覺 skin。
+- 存檔：單人進度會寫入 Firebase Firestore `singlePlayerSaves/{gameId__anonymous_uid__slot}`；若 Anonymous Auth 尚未啟用，會暫時退回 `singlePlayerSaves/{gameId__device_deviceId__slot}`，並同步保留一份本機快取。養成頁會顯示目前存檔來源、文件路徑與 owner key，方便在 Firebase console 對照不同使用者。
 
 ## 開啟
 

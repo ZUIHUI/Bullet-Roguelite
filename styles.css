@@ -457,6 +457,7 @@ h2 {
 
 .resource-strip div,
 .growth-card,
+.save-card,
 .artifact-detail,
 .artifact-card,
 .featured-dragon,
@@ -478,6 +479,7 @@ h2 {
 
 .resource-strip span,
 .growth-card span,
+.save-card span,
 .dragon-card span,
 .stage-card span,
 .artifact-panel span,
@@ -490,6 +492,7 @@ h2 {
 
 .resource-strip strong,
 .growth-card strong,
+.save-card strong,
 .launch-bar strong {
   display: block;
   margin-top: 3px;
@@ -1139,6 +1142,26 @@ h2 {
   display: grid;
   gap: 8px;
   padding-bottom: 84px;
+}
+
+.save-card {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.save-card strong {
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+}
+
+.save-card em {
+  overflow-wrap: anywhere;
+  color: rgba(247, 251, 255, 0.62);
+  font-size: 0.68rem;
+  font-style: normal;
+  line-height: 1.35;
 }
 
 .growth-card {

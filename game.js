@@ -48,6 +48,9 @@ const ui = {
   skillText: document.querySelector("#skillText"),
   summonButton: document.querySelector("#summonButton"),
   summonText: document.querySelector("#summonText"),
+  saveStatus: document.querySelector("#saveStatusText"),
+  saveDoc: document.querySelector("#saveDocText"),
+  saveIdentity: document.querySelector("#saveIdentityText"),
   entryButtons: [...document.querySelectorAll(".entry-button")],
   tabs: [...document.querySelectorAll(".tab-button")],
   tabPanels: {
@@ -66,7 +69,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "52";
+const ASSET_VERSION = "53";
 const COMBAT_TUNING = {
   tailSway: 0.46,
   tailLift: 0.58,
@@ -1011,6 +1014,53 @@ function buildSaveDocId(identityType, userId) {
   return `${FIREBASE_GAME_ID}__${identityType}_${safeIdentitySegment(userId)}__${FIREBASE_SAVE_SLOT}`;
 }
 
+function shortSaveSegment(value, head = 12, tail = 8) {
+  const text = String(value || "");
+  if (!text) return "unknown";
+  return text.length > head + tail + 3 ? `${text.slice(0, head)}...${text.slice(-tail)}` : text;
+}
+
+function firebaseDocPath() {
+  return saveStore.saveDocId ? `${FIREBASE_COLLECTION}/${saveStore.saveDocId}` : FIREBASE_COLLECTION;
+}
+
+function saveOwnerKey() {
+  return `${saveStore.identityType || "device"}:${saveStore.userId || saveStore.deviceId || "pending"}`;
+}
+
+function firebaseSavePayload(meta) {
+  return {
+    gameId: FIREBASE_GAME_ID,
+    saveMode: "single-player",
+    saveSlot: FIREBASE_SAVE_SLOT,
+    saveSchemaVersion: SAVE_SCHEMA_VERSION,
+    collection: FIREBASE_COLLECTION,
+    docPath: firebaseDocPath(),
+    ownerKey: saveOwnerKey(),
+    identityType: saveStore.identityType,
+    userId: saveStore.userId,
+    uid: saveStore.uid,
+    deviceId: saveStore.deviceId,
+    saveDocId: saveStore.saveDocId,
+    meta: JSON.parse(JSON.stringify(meta)),
+    updatedAt: saveStore.serverTimestamp(),
+  };
+}
+
+function renderSaveStatus() {
+  if (!ui.saveStatus || !ui.saveDoc || !ui.saveIdentity) return;
+  const isFirebase = saveStore.type === "firebase";
+  const identityLabel =
+    saveStore.identityType === "anonymous"
+      ? "匿名帳號"
+      : isFirebase
+        ? "裝置備援"
+        : "本機裝置";
+  ui.saveStatus.textContent = isFirebase ? `Firestore / ${identityLabel}` : "本機快取 / 未連線";
+  ui.saveDoc.textContent = isFirebase ? firebaseDocPath() : `${FIREBASE_COLLECTION}/${shortSaveSegment(saveStore.saveDocId)}`;
+  ui.saveIdentity.textContent = `${saveOwnerKey()} · ${FIREBASE_SAVE_SLOT}`;
+}
+
 async function resolveFirebaseIdentity(app, authModule) {
   if (!authModule) throw new Error("Firebase Auth module unavailable");
   const { browserLocalPersistence, getAuth, setPersistence, signInAnonymously } = authModule;
@@ -1198,6 +1248,7 @@ async function loadMeta() {
 
 async function syncFirebaseMeta(localMeta, hasLocalSave = true) {
   saveStore = await initFirebaseStore();
+  renderSaveStatus();
   if (saveStore.type !== "firebase") return;
 
   try {
@@ -1216,26 +1267,16 @@ async function syncFirebaseMeta(localMeta, hasLocalSave = true) {
     await withTimeout(
       saveStore.setDoc(
         saveStore.docRef,
-        {
-          gameId: FIREBASE_GAME_ID,
-          saveMode: "single-player",
-          saveSlot: FIREBASE_SAVE_SLOT,
-          saveSchemaVersion: SAVE_SCHEMA_VERSION,
-          identityType: saveStore.identityType,
-          userId: saveStore.userId,
-          uid: saveStore.uid,
-          deviceId: saveStore.deviceId,
-          saveDocId: saveStore.saveDocId,
-          meta: JSON.parse(JSON.stringify(nextMeta)),
-          updatedAt: saveStore.serverTimestamp(),
-        },
+        firebaseSavePayload(nextMeta),
         { merge: true },
       ),
       4500,
       null,
     );
+    renderSaveStatus();
   } catch (error) {
     console.warn("Firebase save read failed; using local save.", error);
+    renderSaveStatus();
   }
 }
 
@@ -1249,19 +1290,7 @@ function saveMeta() {
   saveStore
     .setDoc(
       saveStore.docRef,
-      {
-        gameId: FIREBASE_GAME_ID,
-        saveMode: "single-player",
-        saveSlot: FIREBASE_SAVE_SLOT,
-        saveSchemaVersion: SAVE_SCHEMA_VERSION,
-        identityType: saveStore.identityType,
-        userId: saveStore.userId,
-        uid: saveStore.uid,
-        deviceId: saveStore.deviceId,
-        saveDocId: saveStore.saveDocId,
-        meta,
-        updatedAt: saveStore.serverTimestamp(),
-      },
+      firebaseSavePayload(meta),
       { merge: true },
     )
     .catch((error) => console.warn("Firebase save write failed; local cache kept.", error));
@@ -1682,6 +1711,7 @@ function renderHome() {
   ui.equipmentCostText.textContent = `強化 ${equipmentUpgradeCost()}金`;
   ui.skillText.textContent = `吞噬學 +${state.meta.skillLevel}`;
   ui.summonText.textContent = "80晶";
+  renderSaveStatus();
 
   renderDragonPreview();
   renderFormPanel();
@@ -4454,39 +4484,217 @@ function drawBattleStoredEnergy(player, chargeRatio, mainColor, accentColor) {
   ctx.globalAlpha = 1;
 }
 
+function enemySkinColors(enemy) {
+  const stage = state.currentStage || selectedStage();
+  const stageAccent = stage?.theme || enemy.color;
+  return {
+    main: enemy.color || stageAccent,
+    accent: stageAccent,
+    dark: "#05070d",
+    bone: "#fff4c5",
+  };
+}
+
+function drawEnemyCore(r, colors, pulse) {
+  ctx.fillStyle = colorAlpha(colors.dark, 0.72);
+  ctx.beginPath();
+  ctx.ellipse(0, 2, r * 0.38, r * 0.46, 0, 0, TAU);
+  ctx.fill();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.fillStyle = colorAlpha(colors.bone, 0.72);
+  ctx.beginPath();
+  ctx.ellipse(0, -1, r * (0.13 + pulse * 0.03), r * 0.24, 0, 0, TAU);
+  ctx.fill();
+  ctx.globalCompositeOperation = "source-over";
+}
+
+function drawEnemyRunes(r, colors, phase, count = 5) {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.strokeStyle = colorAlpha(colors.accent, 0.36);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 1.25, phase, phase + Math.PI * 1.35);
+  ctx.stroke();
+  for (let i = 0; i < count; i += 1) {
+    const angle = phase + (i / count) * TAU;
+    ctx.fillStyle = i % 2 ? colors.main : colors.accent;
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.arc(Math.cos(angle) * r * 1.28, Math.sin(angle) * r * 1.08, Math.max(1.4, r * 0.08), 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+function drawWispEnemy(enemy, colors, pulse) {
+  const r = enemy.r;
+  const body = ctx.createRadialGradient(-r * 0.2, -r * 0.28, 1, 0, 0, r * 1.35);
+  body.addColorStop(0, colorAlpha(colors.bone, 0.82));
+  body.addColorStop(0.38, colorAlpha(colors.main, 0.82));
+  body.addColorStop(1, colorAlpha(colors.accent, 0.18));
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r * (0.76 + pulse * 0.05), r * 1.08, Math.sin(state.time + enemy.phase) * 0.24, 0, TAU);
+  ctx.fill();
+
+  ctx.strokeStyle = colorAlpha(colors.accent, 0.64);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.5, r * 0.48);
+  ctx.quadraticCurveTo(Math.sin(state.time * 3 + enemy.phase) * r * 0.55, r * 1.28, r * 0.42, r * 0.58);
+  ctx.stroke();
+  drawEnemyCore(r, colors, pulse);
+}
+
+function drawSkimmerEnemy(enemy, colors, pulse) {
+  const r = enemy.r;
+  const wing = Math.sin(state.time * 7 + enemy.phase) * 0.12;
+  ctx.fillStyle = colorAlpha(colors.main, 0.82);
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.38);
+    ctx.quadraticCurveTo(side * r * 1.9, -r * (0.95 + wing), side * r * 2.45, r * 0.24);
+    ctx.quadraticCurveTo(side * r * 1.08, r * 0.52, 0, r * 0.26);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.fillStyle = colors.accent;
+  ctx.beginPath();
+  ctx.moveTo(0, -r * 1.45);
+  ctx.lineTo(r * 0.58, r * 0.72);
+  ctx.lineTo(0, r * 1.55);
+  ctx.lineTo(-r * 0.58, r * 0.72);
+  ctx.closePath();
+  ctx.fill();
+  drawEnemyCore(r, colors, pulse);
+}
+
+function drawBruteEnemy(enemy, colors, pulse) {
+  const r = enemy.r;
+  ctx.fillStyle = colorAlpha(colors.main, 0.9);
+  ctx.beginPath();
+  for (let i = 0; i < 12; i += 1) {
+    const a = -Math.PI / 2 + (i / 12) * TAU;
+    const spike = i % 2 === 0 ? 1.22 : 0.78;
+    const x = Math.cos(a) * r * spike;
+    const y = Math.sin(a) * r * (i % 2 === 0 ? 1.08 : 0.82);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = colorAlpha(colors.accent, 0.7);
+  ctx.beginPath();
+  ctx.moveTo(0, -r * 1.52);
+  ctx.lineTo(r * 0.42, -r * 0.55);
+  ctx.lineTo(-r * 0.42, -r * 0.55);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = colorAlpha(colors.bone, 0.42 + pulse * 0.16);
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.72, -r * 0.1);
+  ctx.lineTo(r * 0.72, -r * 0.1);
+  ctx.moveTo(-r * 0.56, r * 0.42);
+  ctx.lineTo(r * 0.56, r * 0.42);
+  ctx.stroke();
+  drawEnemyCore(r, colors, pulse);
+}
+
+function drawEliteEnemy(enemy, colors, pulse) {
+  const r = enemy.r;
+  drawEnemyRunes(r, colors, -state.time * 1.8 + enemy.phase, 7);
+  ctx.fillStyle = colorAlpha(colors.main, 0.88);
+  ctx.beginPath();
+  ctx.moveTo(0, -r * 1.35);
+  ctx.lineTo(r * 0.95, -r * 0.36);
+  ctx.lineTo(r * 0.62, r * 1.08);
+  ctx.lineTo(0, r * 1.42);
+  ctx.lineTo(-r * 0.62, r * 1.08);
+  ctx.lineTo(-r * 0.95, -r * 0.36);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = colorAlpha(colors.accent, 0.74);
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * r * 0.45, -r * 0.86);
+    ctx.lineTo(side * r * 1.5, -r * 1.28);
+    ctx.lineTo(side * r * 0.8, -r * 0.2);
+    ctx.closePath();
+    ctx.fill();
+  }
+  drawEnemyCore(r, colors, pulse);
+}
+
+function drawBossEnemy(enemy, colors, pulse) {
+  const r = enemy.r;
+  drawEnemyRunes(r * 1.08, colors, state.time * 0.9 + enemy.phase, 9);
+  ctx.fillStyle = colorAlpha(colors.main, 0.72);
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.42);
+    ctx.quadraticCurveTo(side * r * 2.15, -r * 1.35, side * r * 2.45, r * 0.68);
+    ctx.quadraticCurveTo(side * r * 1.02, r * 0.34, 0, r * 0.65);
+    ctx.closePath();
+    ctx.fill();
+  }
+  const mask = ctx.createLinearGradient(0, -r * 1.5, 0, r * 1.65);
+  mask.addColorStop(0, colorAlpha(colors.bone, 0.72));
+  mask.addColorStop(0.45, colorAlpha(colors.main, 0.92));
+  mask.addColorStop(1, colorAlpha(colors.dark, 0.92));
+  ctx.fillStyle = mask;
+  ctx.beginPath();
+  ctx.moveTo(0, -r * 1.7);
+  ctx.bezierCurveTo(r * 1.1, -r * 1.05, r * 1.02, r * 0.78, 0, r * 1.58);
+  ctx.bezierCurveTo(-r * 1.02, r * 0.78, -r * 1.1, -r * 1.05, 0, -r * 1.7);
+  ctx.fill();
+  ctx.fillStyle = colorAlpha(colors.accent, 0.78);
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * r * 0.28, -r * 1.2);
+    ctx.lineTo(side * r * 1.12, -r * 2.05);
+    ctx.lineTo(side * r * 0.72, -r * 0.74);
+    ctx.closePath();
+    ctx.fill();
+  }
+  drawEnemyCore(r, colors, pulse);
+}
+
+function drawEnemyHealth(enemy) {
+  const width = enemy.r * (enemy.kind === "boss" ? 2.4 : 2);
+  const y = -enemy.r - (enemy.kind === "boss" ? 18 : 10);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.82)";
+  ctx.fillRect(-width / 2, y, width, 3);
+  ctx.fillStyle = enemy.kind === "boss" ? "#ffd166" : "#77f5a6";
+  ctx.fillRect(-width / 2, y, width * clamp(enemy.hp / enemy.maxHp, 0, 1), 3);
+}
+
 function drawEnemies() {
   for (const enemy of state.enemies) {
+    const colors = enemySkinColors(enemy);
+    const pulse = (Math.sin(state.time * 4.2 + enemy.phase) + 1) / 2;
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
-    ctx.shadowColor = enemy.color;
-    ctx.shadowBlur = 16;
-    ctx.fillStyle = enemy.color;
+    ctx.rotate(Math.sin(state.time * 1.2 + enemy.phase) * (enemy.type === "boss" ? 0.06 : 0.12));
+    ctx.shadowColor = colors.main;
+    ctx.shadowBlur = enemy.type === "boss" ? 26 : 16;
 
-    if (enemy.type === "brute") {
-      ctx.beginPath();
-      for (let i = 0; i < 8; i += 1) {
-        const a = (i / 8) * TAU + state.time * 0.8;
-        const r = i % 2 === 0 ? enemy.r : enemy.r * 0.68;
-        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-      }
-      ctx.closePath();
-      ctx.fill();
+    if (enemy.type === "boss") {
+      drawBossEnemy(enemy, colors, pulse);
+    } else if (enemy.type === "elite" || enemy.type === "demo") {
+      drawEliteEnemy(enemy, colors, pulse);
+    } else if (enemy.type === "brute") {
+      drawBruteEnemy(enemy, colors, pulse);
+    } else if (enemy.type === "skimmer") {
+      drawSkimmerEnemy(enemy, colors, pulse);
     } else {
-      ctx.beginPath();
-      ctx.ellipse(0, 0, enemy.r * 0.9, enemy.r * 1.15, Math.sin(state.time + enemy.phase) * 0.28, 0, TAU);
-      ctx.fill();
+      drawWispEnemy(enemy, colors, pulse);
     }
 
     ctx.shadowBlur = 0;
-    ctx.fillStyle = "rgba(5, 7, 13, 0.65)";
-    ctx.beginPath();
-    ctx.arc(0, 3, enemy.r * 0.36, 0, TAU);
-    ctx.fill();
-
-    ctx.fillStyle = "rgba(255, 255, 255, 0.82)";
-    ctx.fillRect(-enemy.r, -enemy.r - 10, enemy.r * 2, 3);
-    ctx.fillStyle = "#77f5a6";
-    ctx.fillRect(-enemy.r, -enemy.r - 10, enemy.r * 2 * clamp(enemy.hp / enemy.maxHp, 0, 1), 3);
+    drawEnemyHealth(enemy);
     ctx.restore();
   }
 }
