@@ -98,7 +98,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "75";
+const ASSET_VERSION = "76";
 const COMBAT_TUNING = {
   tailSway: 0.17,
   tailLift: 0.24,
@@ -108,15 +108,15 @@ const COMBAT_TUNING = {
   playerShotCooldown: 1.38,
   absorbShotDamage: 0.56,
   absorbShotCooldown: 1.12,
-  absorbReachBoost: 1.28,
-  absorbWidthBoost: 1.32,
-  absorbEdgeGrace: 0.82,
-  absorbMouthRadius: 38,
-  absorbMouthBulletGrace: 1.08,
-  absorbSnapBonus: 14,
-  absorbPullStrength: 0.88,
-  baseSwallowLength: 88,
-  baseSwallowWidth: 30,
+  absorbReachBoost: 1.18,
+  absorbWidthBoost: 1.18,
+  absorbEdgeGrace: 0.54,
+  absorbMouthRadius: 30,
+  absorbMouthBulletGrace: 0.9,
+  absorbSnapBonus: 10,
+  absorbPullStrength: 1.02,
+  baseSwallowLength: 78,
+  baseSwallowWidth: 25,
   breathShotDamage: 0.32,
   breathBeamDamage: 0.22,
   ultimateDamage: 0.25,
@@ -958,8 +958,8 @@ const RUN_SKILLS = [
     detail: "吞噬槽變寬並延伸",
     max: 5,
     apply(level) {
-      state.upgrades.swallowWidth += 8 + level * 2;
-      state.upgrades.swallowLength += 10;
+      state.upgrades.swallowWidth += 5 + level;
+      state.upgrades.swallowLength += 7;
     },
   },
   {
@@ -2761,7 +2761,7 @@ function spawnAbsorbDemoBullet(index = 0) {
   const colors = dragon.colors || ["#42efd2", "#ffd166", "#9b7cff"];
   const progress = rand(0.36, 0.98);
   const side = index % 2 === 0 ? -1 : 1;
-  const halfWidth = maw.width * (0.58 + progress * 0.72);
+  const halfWidth = maw.width * (0.46 + progress * 0.52);
   state.bullets.push({
     x: maw.x + side * rand(halfWidth * 0.35, halfWidth * 1.05),
     y: maw.y - maw.length * progress + rand(-16, 16),
@@ -2924,10 +2924,10 @@ function getMawZone() {
 function getMawHit(bullet) {
   const maw = getMawZone();
   const ahead = maw.y - bullet.y;
-  if (ahead < -26 - bullet.r || ahead > maw.length + bullet.r * 1.35) return null;
+  if (ahead < -18 - bullet.r || ahead > maw.length + bullet.r * 1.05) return null;
 
   const progress = clamp(ahead / maw.length, 0, 1);
-  const halfWidth = maw.width * (0.62 + progress * 0.78);
+  const halfWidth = maw.width * (0.46 + progress * 0.52);
   const lateral = Math.abs(bullet.x - maw.x);
   if (lateral > halfWidth + bullet.r * COMBAT_TUNING.absorbEdgeGrace) return null;
 
@@ -5106,8 +5106,8 @@ function drawBattleSwallowField(mouthY, mainColor, accentColor, chargeRatio, abs
 
   const pullCharge = clamp(absorbTime * 1.35 + chargeRatio * 0.5, 0, 1.4);
   const mawZone = getMawZone();
-  const length = mawZone.length * (1 + pullCharge * 0.12);
-  const width = mawZone.width * (1 + pullCharge * 0.08);
+  const length = mawZone.length * (1 + pullCharge * 0.06);
+  const width = mawZone.width * (1 + pullCharge * 0.04);
   const pulse = 1 + Math.sin(state.time * (9 + pullCharge * 4)) * (0.04 + pullCharge * 0.025);
   const cone = ctx.createLinearGradient(0, mouthY, 0, mouthY - length);
   cone.addColorStop(0, colorAlpha(accentColor, 0.5 + chargeRatio * 0.22));
@@ -5116,8 +5116,8 @@ function drawBattleSwallowField(mouthY, mainColor, accentColor, chargeRatio, abs
   cone.addColorStop(1, colorAlpha(mainColor, 0));
   const conePoints = [
     [-18, mouthY + 5],
-    [-width * 1.36 * pulse, mouthY - length],
-    [width * 1.36 * pulse, mouthY - length],
+    [-width * 1.08 * pulse, mouthY - length],
+    [width * 1.08 * pulse, mouthY - length],
     [18, mouthY + 5],
   ];
   ctx.fillStyle = cone;
@@ -5137,9 +5137,9 @@ function drawBattleSwallowField(mouthY, mainColor, accentColor, chargeRatio, abs
   ctx.lineDashOffset = -state.time * 42;
   ctx.beginPath();
   ctx.moveTo(-19, mouthY + 6);
-  ctx.quadraticCurveTo(-width * pulse, mouthY - length * 0.5, -width * 1.34 * pulse, mouthY - length);
+  ctx.quadraticCurveTo(-width * 0.82 * pulse, mouthY - length * 0.5, -width * 1.06 * pulse, mouthY - length);
   ctx.moveTo(19, mouthY + 6);
-  ctx.quadraticCurveTo(width * pulse, mouthY - length * 0.5, width * 1.34 * pulse, mouthY - length);
+  ctx.quadraticCurveTo(width * 0.82 * pulse, mouthY - length * 0.5, width * 1.06 * pulse, mouthY - length);
   ctx.stroke();
   ctx.setLineDash([]);
 
@@ -5149,7 +5149,7 @@ function drawBattleSwallowField(mouthY, mainColor, accentColor, chargeRatio, abs
     for (let step = 0; step <= 26; step += 1) {
       const t = step / 26;
       const streamY = mouthY - length * t;
-      const localWidth = width * (0.22 + t * 0.98);
+      const localWidth = width * (0.18 + t * 0.78);
       const twist = Math.sin(state.time * 8.5 + t * 9.2 + lane * 1.7) * localWidth * (0.08 + t * 0.18);
       const streamX = laneOffset * localWidth * (1 - t * 0.22) + twist;
       if (step === 0) ctx.moveTo(streamX, streamY);
@@ -5164,7 +5164,7 @@ function drawBattleSwallowField(mouthY, mainColor, accentColor, chargeRatio, abs
   for (let i = 0; i < 22; i += 1) {
     const t = (state.time * (0.9 + pullCharge * 0.24) + i / 22) % 1;
     const streamY = mouthY - length * t;
-    const localWidth = width * (0.2 + t * 1.05);
+    const localWidth = width * (0.16 + t * 0.8);
     const angle = state.time * 7 + i * 2.19 + t * 5;
     const streamX = Math.sin(angle) * localWidth * (0.34 + t * 0.28);
     const tailX = Math.sin(angle + 0.55) * localWidth * (0.24 + t * 0.2);
@@ -5191,7 +5191,7 @@ function drawBattleSwallowField(mouthY, mainColor, accentColor, chargeRatio, abs
     ctx.strokeStyle = i % 2 ? accentColor : mainColor;
     ctx.lineWidth = 1.3;
     ctx.beginPath();
-    ctx.ellipse(0, mouthY - ringT * length * 0.72, width * (0.34 + ringT * 0.56), 8 + ringT * 18, 0, 0, TAU);
+    ctx.ellipse(0, mouthY - ringT * length * 0.72, width * (0.28 + ringT * 0.46), 8 + ringT * 18, 0, 0, TAU);
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
