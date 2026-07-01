@@ -96,7 +96,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "69";
+const ASSET_VERSION = "70";
 const COMBAT_TUNING = {
   tailSway: 0.17,
   tailLift: 0.24,
@@ -3788,11 +3788,49 @@ function renderEndDetails({ summary = "", rewards = [], next = "" } = {}) {
   }
 }
 
-function runStatRewards(baseRewards = []) {
+function runPerformance(cleared = false) {
+  const stats = state.runStats || createRunStats();
+  const clearScore = cleared ? 30 : Math.min(18, state.wave * 2);
+  const swallowScore = Math.min(30, stats.swallowedBullets * 1.15);
+  const counterScore = Math.min(18, stats.breathReleases * 4);
+  const ultimateScore = Math.min(8, stats.ultimatesUsed * 4);
+  const resonanceScore = Math.min(12, stats.resonanceTriggers * 3);
+  const pressurePenalty = stats.hitsTaken * 9 + Math.min(18, stats.damageTaken * 2.4);
+  const score = clamp(Math.round(clearScore + swallowScore + counterScore + ultimateScore + resonanceScore - pressurePenalty), 0, 100);
+  const grade = score >= 88 ? "S" : score >= 72 ? "A" : score >= 56 ? "B" : score >= 40 ? "C" : "D";
+  let focus = "穩定";
+  let tip = "節奏穩定，下一場可以嘗試更積極用共鳴或大絕壓 Boss。";
+
+  if (stats.hitsTaken >= 4 || stats.damageTaken >= 5) {
+    focus = "閃避";
+    tip = "受擊偏多，下一場先保留一段移動空間，不要長時間站在吸收錐形中央。";
+  } else if (stats.swallowedBullets < Math.max(8, state.wave * 2)) {
+    focus = "吞彈";
+    tip = "吞彈量偏低，下一場抓慢彈和大彈吸收，讓反吐與大絕能量更穩。";
+  } else if (stats.breathReleases < 2 && stats.swallowedBullets >= 8) {
+    focus = "反吐";
+    tip = "吞到彈後要更常放開反吐，不然能量會卡在龍腹裡。";
+  } else if (stats.resonanceTriggers === 0 && Object.keys(state.runSkills).length >= 3) {
+    focus = "共鳴";
+    tip = "已拿到多個技能但未觸發共鳴，下一場可優先湊火雷、冰盾、吞魂或反吐矩陣。";
+  }
+
+  return {
+    grade,
+    score,
+    focus,
+    title: `戰鬥評價 ${grade} · ${score}分 · ${focus}`,
+    tip,
+  };
+}
+
+function runStatRewards(baseRewards = [], performance = runPerformance()) {
   const stats = state.runStats || createRunStats();
   const damageTaken = Math.round(stats.damageTaken * 10) / 10;
   return [
     ...baseRewards,
+    { label: "評價", value: `${performance.grade} ${performance.score}` },
+    { label: "打法", value: performance.focus },
     { label: "吞彈", value: `${stats.swallowedBullets}` },
     { label: "反吐", value: `${stats.breathReleases}` },
     { label: "受擊", value: `${stats.hitsTaken}` },
@@ -3809,6 +3847,7 @@ function completeStage() {
   const bonus = Math.floor(state.score / 100);
   const totalGold = stage.gold + bonus;
   const hasNextStage = index < STAGES.length - 1;
+  const performance = runPerformance(true);
   state.meta.gold += stage.gold + bonus;
   state.meta.scales += stage.scales;
   state.meta.highestStageIndex = Math.max(state.meta.highestStageIndex, Math.min(index + 1, STAGES.length - 1));
@@ -3826,16 +3865,16 @@ function completeStage() {
   ui.endTitle.textContent = `${stage.chapterTitle}突破`;
   ui.finalScore.textContent = `分數 ${Math.floor(state.score).toLocaleString("zh-TW")}`;
   renderEndDetails({
-    summary: stage.storyClear,
+    summary: `${stage.storyClear}\n${performance.title}`,
     rewards: runStatRewards([
       { label: "金幣", value: `+${totalGold}` },
       { label: "龍晶", value: `+${stage.scales}` },
       { label: "擊破", value: `${state.stageKills}` },
       { label: hasNextStage ? "下一關" : "主線", value: hasNextStage ? nextStage.id : "暫告一段" },
-    ]),
+    ], performance),
     next: hasNextStage
-      ? `下一關已選定：${nextStage.name}。回主畫面強化龍、裝備、技能後再出戰。`
-      : "目前主線已完成，回主畫面強化龍族與神器。",
+      ? `下一關已選定：${nextStage.name}。${performance.tip}`
+      : `目前主線已完成，回主畫面強化龍族與神器。${performance.tip}`,
   });
   ui.restartButton.textContent = "回主畫面強化";
   ui.endOverlay.classList.add("active");
@@ -6015,6 +6054,7 @@ function endRun() {
   updateBossHud();
   const partialGold = Math.floor(state.score / 180);
   const partialScales = Math.floor(state.stageKills / 12);
+  const performance = runPerformance(false);
   state.meta.gold += partialGold;
   state.meta.scales += partialScales;
   saveMeta();
@@ -6022,14 +6062,14 @@ function endRun() {
   ui.endTitle.textContent = state.wave >= 6 ? "龍焰仍亮著" : "再飛一次";
   ui.finalScore.textContent = `分數 ${Math.floor(state.score).toLocaleString("zh-TW")}`;
   renderEndDetails({
-    summary: "冒險中斷，已帶回部分資源。調整龍、裝備或技能搭配後再挑戰。",
+    summary: `冒險中斷，已帶回部分資源。${performance.title}`,
     rewards: runStatRewards([
       { label: "金幣", value: `+${partialGold}` },
       { label: "龍晶", value: `+${partialScales}` },
       { label: "擊破", value: `${state.stageKills}` },
       { label: "到達", value: `Wave ${state.wave}` },
-    ]),
-    next: `${state.currentStage?.name || "目前關卡"} 仍可再次挑戰。`,
+    ], performance),
+    next: `${state.currentStage?.name || "目前關卡"} 仍可再次挑戰。${performance.tip}`,
   });
   ui.restartButton.textContent = "回主畫面";
   ui.endOverlay.classList.add("active");
