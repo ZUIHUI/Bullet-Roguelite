@@ -97,7 +97,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "72";
+const ASSET_VERSION = "73";
 const COMBAT_TUNING = {
   tailSway: 0.17,
   tailLift: 0.24,
@@ -150,6 +150,76 @@ const BOSS_TACTICS = {
   spire: { id: "spire", name: "霆針鎖線", tip: "雷針速度快，跟著鎖線空隙切入" },
   rift: { id: "rift", name: "裂隙回流", tip: "旋轉彈會回捲，保留吞噬槽反打" },
   ritual: { id: "ritual", name: "龍王祭印", tip: "王庭會混合扇幕與環彈，分段吞噬" },
+};
+const ENEMY_THEME_SKINS = {
+  valley: {
+    id: "valley",
+    palette: ["#42efd2", "#77f5a6", "#ffd166", "#9fe2ff", "#f2d27a"],
+    accent: "#ffd166",
+    dark: "#06131b",
+    bone: "#fff4c5",
+    runeCount: 5,
+    horn: "relic",
+    core: "orb",
+  },
+  reef: {
+    id: "reef",
+    palette: ["#6bdcff", "#7aa7ff", "#7defff", "#c4f7ff", "#a8d8ff"],
+    accent: "#ff8ab3",
+    dark: "#031626",
+    bone: "#eafcff",
+    runeCount: 6,
+    horn: "fin",
+    core: "bubble",
+  },
+  forge: {
+    id: "forge",
+    palette: ["#ff6b3d", "#ff9f1c", "#ffd166", "#e0523f", "#ffb84d"],
+    accent: "#ffd166",
+    dark: "#190807",
+    bone: "#ffe8bd",
+    runeCount: 4,
+    horn: "anvil",
+    core: "ember",
+  },
+  spire: {
+    id: "spire",
+    palette: ["#3ddcff", "#ffd166", "#7aa7ff", "#fff4c5", "#35c8d8"],
+    accent: "#fff4c5",
+    dark: "#07101f",
+    bone: "#f6fbff",
+    runeCount: 7,
+    horn: "needle",
+    core: "spark",
+  },
+  rift: {
+    id: "rift",
+    palette: ["#9b7cff", "#c084fc", "#ff8ab3", "#5c3bd9", "#e6d6ff"],
+    accent: "#42efd2",
+    dark: "#0b0718",
+    bone: "#f3e9ff",
+    runeCount: 8,
+    horn: "crescent",
+    core: "void",
+  },
+  ritual: {
+    id: "ritual",
+    palette: ["#f2d27a", "#a678ff", "#ff6b6b", "#42efd2", "#fff4c5"],
+    accent: "#c084fc",
+    dark: "#100713",
+    bone: "#fff4c5",
+    runeCount: 9,
+    horn: "crown",
+    core: "seal",
+  },
+};
+const ENEMY_TYPE_SKIN_INDEX = {
+  wisp: 0,
+  skimmer: 1,
+  brute: 2,
+  elite: 3,
+  boss: 4,
+  demo: 3,
 };
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDxQqZWabxFJ0RWc5Xr3bVjBj1QctS4hGE",
@@ -1739,6 +1809,17 @@ function bossTacticForStage(stage = selectedStage()) {
   return BOSS_TACTICS[key] || BOSS_TACTICS.valley;
 }
 
+function enemyThemeSkin(stage = state.currentStage || selectedStage()) {
+  const tactic = bossTacticForStage(stage);
+  return ENEMY_THEME_SKINS[tactic.id] || ENEMY_THEME_SKINS.valley;
+}
+
+function enemyThemeColor(type, stage = state.currentStage || selectedStage()) {
+  const skin = enemyThemeSkin(stage);
+  const index = ENEMY_TYPE_SKIN_INDEX[type] ?? 0;
+  return skin.palette[index] || skin.palette[0] || stage?.theme || "#ff6b6b";
+}
+
 function getStageBackgroundImage(stage) {
   const imageId = stageBackgroundId(stage);
   if (!stageBackgroundImageCache.has(imageId)) {
@@ -2979,6 +3060,16 @@ function spawnEnemy(kind = "normal") {
     });
   }
 
+  const themeSkin = enemyThemeSkin(state.currentStage);
+  enemy.themeSkinId = themeSkin.id;
+  enemy.skinAccent = themeSkin.accent;
+  enemy.skinDark = themeSkin.dark;
+  enemy.skinBone = themeSkin.bone;
+  enemy.skinRuneCount = themeSkin.runeCount;
+  enemy.skinHorn = themeSkin.horn;
+  enemy.skinCore = themeSkin.core;
+  enemy.color = enemyThemeColor(enemy.type, state.currentStage);
+  enemy.bulletColor = enemy.type === "boss" ? enemy.color : themeSkin.palette[(ENEMY_TYPE_SKIN_INDEX[enemy.type] + 1) % themeSkin.palette.length] || enemy.color;
   enemy.hp = Math.round(enemy.hp * (mods.enemyHp || 1) * COMBAT_TUNING.enemyHp);
   enemy.speed *= (mods.enemySpeed || 1) * COMBAT_TUNING.enemySpeed;
   enemy.shoot *= COMBAT_TUNING.enemyShootDelay;
@@ -2991,7 +3082,7 @@ function spawnEnemy(kind = "normal") {
   return enemy;
 }
 
-function fireEnemyBullet(enemy, angle, speed, radius = 6, color = enemy.color) {
+function fireEnemyBullet(enemy, angle, speed, radius = 6, color = enemy.bulletColor || enemy.color) {
   const mods = stageMods();
   const drift = mods.bulletDrift ? Math.sin(state.time * 1.7 + enemy.phase) * 34 : 0;
   const bulletSpeed = speed * (mods.bulletSpeed || 1) * COMBAT_TUNING.enemyBulletSpeed;
@@ -3079,7 +3170,7 @@ function enemyShoot(enemy) {
 
 function spawnEnemyHazard(enemy) {
   const player = state.player;
-  const color = enemy.kind === "boss" ? state.currentStage.theme : enemy.color;
+  const color = enemy.color || (enemy.kind === "boss" ? state.currentStage.theme : enemy.skinAccent);
   const mods = stageMods();
   const laserChance = clamp(0.58 + (1 - (mods.laserRate || 1)) * 0.36, 0.36, 0.86);
   if (enemy.kind === "boss" && Math.random() < laserChance) {
@@ -5400,12 +5491,16 @@ function drawBattleStoredEnergy(player, chargeRatio, mainColor, accentColor) {
 
 function enemySkinColors(enemy) {
   const stage = state.currentStage || selectedStage();
+  const theme = ENEMY_THEME_SKINS[enemy.themeSkinId] || enemyThemeSkin(stage);
   const stageAccent = stage?.theme || enemy.color;
   return {
-    main: enemy.color || stageAccent,
-    accent: stageAccent,
-    dark: "#05070d",
-    bone: "#fff4c5",
+    main: enemy.color || theme.palette?.[0] || stageAccent,
+    accent: enemy.skinAccent || theme.accent || stageAccent,
+    dark: enemy.skinDark || theme.dark || "#05070d",
+    bone: enemy.skinBone || theme.bone || "#fff4c5",
+    runeCount: enemy.skinRuneCount || theme.runeCount || 5,
+    horn: enemy.skinHorn || theme.horn || "relic",
+    core: enemy.skinCore || theme.core || "orb",
   };
 }
 
@@ -5423,6 +5518,7 @@ function drawEnemyCore(r, colors, pulse) {
 }
 
 function drawEnemyRunes(r, colors, phase, count = 5) {
+  const runeCount = colors.runeCount || count;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.strokeStyle = colorAlpha(colors.accent, 0.36);
@@ -5430,8 +5526,8 @@ function drawEnemyRunes(r, colors, phase, count = 5) {
   ctx.beginPath();
   ctx.arc(0, 0, r * 1.25, phase, phase + Math.PI * 1.35);
   ctx.stroke();
-  for (let i = 0; i < count; i += 1) {
-    const angle = phase + (i / count) * TAU;
+  for (let i = 0; i < runeCount; i += 1) {
+    const angle = phase + (i / runeCount) * TAU;
     ctx.fillStyle = i % 2 ? colors.main : colors.accent;
     ctx.globalAlpha = 0.5;
     ctx.beginPath();
@@ -5440,6 +5536,103 @@ function drawEnemyRunes(r, colors, phase, count = 5) {
   }
   ctx.restore();
   ctx.globalAlpha = 1;
+}
+
+function drawEnemyThemeAccent(enemy, colors, pulse) {
+  const r = enemy.r;
+  const flare = 0.86 + pulse * 0.22;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.strokeStyle = colorAlpha(colors.accent, 0.52);
+  ctx.fillStyle = colorAlpha(colors.accent, 0.42);
+  ctx.lineWidth = enemy.type === "boss" ? 2 : 1.25;
+
+  if (colors.horn === "fin") {
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(side * r * 1.05, -r * 0.08, r * 0.25, r * 0.82, side * 0.58, 0, TAU);
+      ctx.fill();
+    }
+  } else if (colors.horn === "anvil") {
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(side * r * 0.35, -r * 0.9);
+      ctx.lineTo(side * r * 1.18, -r * 0.72);
+      ctx.lineTo(side * r * 0.74, -r * 0.22);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (colors.horn === "needle") {
+    for (let i = -1; i <= 1; i += 1) {
+      ctx.beginPath();
+      ctx.moveTo(i * r * 0.26, -r * 0.8);
+      ctx.lineTo(i * r * 0.42, -r * 1.62 * flare);
+      ctx.lineTo(i * r * 0.06, -r * 0.84);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (colors.horn === "crescent") {
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.22, r * 1.24, -Math.PI * 0.08, Math.PI * 1.08);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(r * 0.22, -r * 0.25, r * 0.72, Math.PI * 0.02, Math.PI * 1.02);
+    ctx.stroke();
+  } else if (colors.horn === "crown") {
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.68, -r * 0.86);
+    ctx.lineTo(-r * 0.34, -r * 1.48);
+    ctx.lineTo(0, -r * 0.98);
+    ctx.lineTo(r * 0.34, -r * 1.48);
+    ctx.lineTo(r * 0.68, -r * 0.86);
+    ctx.stroke();
+  } else {
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(side * r * 0.72, -r * 0.62, r * 0.18, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  if (colors.core === "bubble") {
+    ctx.strokeStyle = colorAlpha(colors.bone, 0.42);
+    ctx.beginPath();
+    ctx.arc(0, 0, r * (0.44 + pulse * 0.1), 0, TAU);
+    ctx.stroke();
+  } else if (colors.core === "ember") {
+    ctx.fillStyle = colorAlpha(colors.bone, 0.5);
+    for (let i = 0; i < 3; i += 1) {
+      const angle = state.time * 2.6 + i * TAU / 3;
+      ctx.beginPath();
+      ctx.arc(Math.cos(angle) * r * 0.48, Math.sin(angle) * r * 0.36, r * 0.07, 0, TAU);
+      ctx.fill();
+    }
+  } else if (colors.core === "spark") {
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.28, 0);
+    ctx.lineTo(r * 0.06, -r * 0.36);
+    ctx.lineTo(-r * 0.02, 0.04);
+    ctx.lineTo(r * 0.34, r * 0.04);
+    ctx.stroke();
+  } else if (colors.core === "void") {
+    ctx.strokeStyle = colorAlpha(colors.main, 0.62);
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.58, state.time * 2, state.time * 2 + Math.PI * 1.42);
+    ctx.stroke();
+  } else if (colors.core === "seal") {
+    ctx.strokeStyle = colorAlpha(colors.bone, 0.52);
+    ctx.beginPath();
+    for (let i = 0; i < 6; i += 1) {
+      const angle = -Math.PI / 2 + i * TAU / 6;
+      const x = Math.cos(angle) * r * 0.52;
+      const y = Math.sin(angle) * r * 0.52;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function drawWispEnemy(enemy, colors, pulse) {
@@ -5639,6 +5832,7 @@ function drawEnemies() {
       drawWispEnemy(enemy, colors, pulse);
     }
 
+    drawEnemyThemeAccent(enemy, colors, pulse);
     ctx.shadowBlur = 0;
     drawEnemyStatusEffects(enemy, colors);
     drawEnemyHealth(enemy);
