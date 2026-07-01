@@ -13,8 +13,18 @@ const ui = {
   upgradeOverlay: document.querySelector("#upgradeOverlay"),
   endOverlay: document.querySelector("#endOverlay"),
   summonOverlay: document.querySelector("#summonOverlay"),
+  stageBriefOverlay: document.querySelector("#stageBriefOverlay"),
   startButton: document.querySelector("#startButton"),
   restartButton: document.querySelector("#restartButton"),
+  stageBriefStartButton: document.querySelector("#stageBriefStartButton"),
+  stageBriefCloseButton: document.querySelector("#stageBriefCloseButton"),
+  stageBriefArt: document.querySelector("#stageBriefArt"),
+  stageBriefDragon: document.querySelector("#stageBriefDragon"),
+  stageBriefLabel: document.querySelector("#stageBriefLabel"),
+  stageBriefTitle: document.querySelector("#stageBriefTitle"),
+  stageBriefStory: document.querySelector("#stageBriefStory"),
+  stageBriefObjective: document.querySelector("#stageBriefObjective"),
+  stageBriefMeta: document.querySelector("#stageBriefMeta"),
   upgradeChoices: document.querySelector("#upgradeChoices"),
   finalScore: document.querySelector("#finalScore"),
   endLabel: document.querySelector("#endLabel"),
@@ -78,7 +88,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "57";
+const ASSET_VERSION = "58";
 const COMBAT_TUNING = {
   tailSway: 0.28,
   tailLift: 0.36,
@@ -2069,7 +2079,7 @@ function setHomeTab(tabId) {
 
 function openHomeEntry(entryId) {
   if (entryId === "battle") {
-    resetRun();
+    openStageBriefing();
     return;
   }
   if (entryId === "summon") {
@@ -2077,6 +2087,48 @@ function openHomeEntry(entryId) {
     return;
   }
   setHomeTab(entryId);
+}
+
+function openStageBriefing() {
+  if (!ui.stageBriefOverlay) {
+    resetRun();
+    return;
+  }
+
+  const stage = selectedStage();
+  const dragon = selectedDragon();
+  const form = selectedForm(dragon);
+  const artifact = artifactForDragon(dragon);
+  const skills = selectedRunSkills();
+  const skillText = skills.length ? skills.map((skill) => skill.title).join(" / ") : "未配置";
+
+  hideSummonResult();
+  ui.stageBriefLabel.textContent = `第${stage.chapter}章 · ${stage.chapterTitle}`;
+  ui.stageBriefTitle.textContent = stage.name;
+  ui.stageBriefStory.textContent = stage.storyIntro;
+  ui.stageBriefObjective.textContent = `任務：${stage.objective}`;
+  ui.stageBriefMeta.innerHTML = [
+    `${stage.waves}波`,
+    `每波${stage.waveSeconds}秒`,
+    `Boss：${stage.boss}`,
+    `建議戰力 ${stage.power}`,
+    `獎勵 ${stage.gold}金 / ${stage.scales}晶`,
+    `${dragon.name} · ${form.name}`,
+    `${artifact.name}`,
+    `戰術 ${skillText}`,
+  ].map((item) => `<span>${item}</span>`).join("");
+  ui.stageBriefArt.style.backgroundImage = `linear-gradient(180deg, rgba(5, 7, 13, 0.08), rgba(5, 7, 13, 0.72)), url("${stageBackgroundImagePath(stage)}")`;
+  ui.stageBriefDragon.innerHTML = dragonArtMarkup(dragon, "stage-brief-dragon-art", dragon.name);
+  ui.stageBriefOverlay.classList.add("active");
+}
+
+function closeStageBriefing() {
+  ui.stageBriefOverlay?.classList.remove("active");
+}
+
+function startBriefedRun() {
+  closeStageBriefing();
+  resetRun();
 }
 
 function showSummonResult(result) {
@@ -2247,6 +2299,7 @@ function resetRun() {
   input.target = { x: state.player.x, y: state.player.y };
   input.absorbing = false;
   hideSummonResult();
+  closeStageBriefing();
   ui.startOverlay.classList.remove("active");
   ui.endOverlay.classList.remove("active");
   ui.upgradeOverlay.classList.remove("active");
@@ -3336,6 +3389,7 @@ function showHome() {
   ui.endOverlay.classList.remove("active");
   ui.upgradeOverlay.classList.remove("active");
   hideSummonResult();
+  closeStageBriefing();
   ui.startOverlay.classList.add("active");
   hideWaveBanner();
   updateBossHud();
@@ -5301,7 +5355,9 @@ canvas.addEventListener("pointerdown", handleCanvasDown);
 canvas.addEventListener("pointermove", handleCanvasMove);
 canvas.addEventListener("pointerup", handleCanvasUp);
 canvas.addEventListener("pointercancel", handleCanvasUp);
-ui.startButton.addEventListener("click", resetRun);
+ui.startButton.addEventListener("click", openStageBriefing);
+ui.stageBriefStartButton.addEventListener("click", startBriefedRun);
+ui.stageBriefCloseButton.addEventListener("click", closeStageBriefing);
 ui.levelButton.addEventListener("click", () => {
   const dragon = selectedDragon();
   const meta = getDragonMeta(dragon);

@@ -6,8 +6,8 @@
     <meta name="theme-color" content="#05070d" />
     <title>星吞龍</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="icon" href="./assets/app-icon.png?v=57" type="image/png" />
-    <link rel="stylesheet" href="./styles.css?v=57" />
+    <link rel="icon" href="./assets/app-icon.png?v=58" type="image/png" />
+    <link rel="stylesheet" href="./styles.css?v=58" />
   </head>
   <body>
     <main class="game-shell" aria-label="星吞龍遊戲">
@@ -202,6 +202,25 @@
         </div>
       </section>
 
+      <section id="stageBriefOverlay" class="overlay stage-brief-overlay" aria-live="polite">
+        <div class="panel stage-brief-panel">
+          <div id="stageBriefArt" class="stage-brief-art" aria-hidden="true">
+            <div id="stageBriefDragon" class="stage-brief-dragon"></div>
+          </div>
+          <div class="stage-brief-copy">
+            <p class="eyebrow" id="stageBriefLabel">chapter</p>
+            <h2 id="stageBriefTitle">星塵溪谷</h2>
+            <p id="stageBriefStory" class="info-text"></p>
+            <p id="stageBriefObjective" class="stage-brief-objective"></p>
+            <div id="stageBriefMeta" class="stage-brief-meta"></div>
+          </div>
+          <div class="stage-brief-actions">
+            <button id="stageBriefCloseButton" class="secondary-button" type="button">返回</button>
+            <button id="stageBriefStartButton" class="primary-button" type="button">開始出戰</button>
+          </div>
+        </div>
+      </section>
+
       <section id="endOverlay" class="overlay">
         <div class="panel end-panel">
           <p class="eyebrow" id="endLabel">run complete</p>
@@ -223,6 +242,6 @@
       </section>
     </main>
 
-    <script src="./game.js?v=57"></script>
+    <script src="./game.js?v=58"></script>
   </body>
 </html>
