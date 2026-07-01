@@ -43,6 +43,11 @@ const ui = {
   dragonRole: document.querySelector("#dragonRoleText"),
   dragonName: document.querySelector("#dragonNameText"),
   dragonInfo: document.querySelector("#dragonInfoText"),
+  nextActionButton: document.querySelector("#nextActionButton"),
+  nextActionLabel: document.querySelector("#nextActionLabel"),
+  nextActionTitle: document.querySelector("#nextActionTitle"),
+  nextActionText: document.querySelector("#nextActionText"),
+  nextActionMeta: document.querySelector("#nextActionMeta"),
   dragonGrid: document.querySelector("#dragonGrid"),
   formPanel: document.querySelector("#formPanel"),
   artifactPanel: document.querySelector("#artifactPanel"),
@@ -91,7 +96,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "64";
+const ASSET_VERSION = "65";
 const COMBAT_TUNING = {
   tailSway: 0.28,
   tailLift: 0.36,
@@ -1806,6 +1811,110 @@ function renderDragonPreview() {
   `;
 }
 
+function nextActionRecommendation(dragon, stage, power) {
+  const dragonMeta = getDragonMeta(dragon);
+  const artifact = artifactForDragon(dragon);
+  const artifactMeta = getArtifactMeta(artifact);
+  const powerGap = stage.power - power;
+  const levelCost = dragonLevelCost(dragon);
+  const starCost = dragonStarCost(dragon);
+  const artifactCost = artifactMeta.unlocked ? artifactUpgradeCost(artifact) : artifact.cost;
+  const equipmentCost = equipmentUpgradeCost();
+  const loadoutIds = normalizeSkillLoadout(state.meta);
+  const loadoutLimit = skillLoadoutLimit();
+  const powerMeta = `戰力 ${power} / 建議 ${stage.power}`;
+
+  if (state.meta.idleGold > 0 && state.meta.gold + state.meta.idleGold >= Math.min(levelCost, equipmentCost)) {
+    return {
+      entry: "growth",
+      label: "資源可領",
+      title: "先領掛機收益",
+      text: `可領 ${Math.floor(state.meta.idleGold).toLocaleString("zh-TW")} 金，回主畫面強化更順。`,
+      meta: powerMeta,
+    };
+  }
+  if (powerGap > 0 && state.meta.gold >= levelCost) {
+    return {
+      entry: "dragons",
+      label: "戰力不足",
+      title: `強化${dragon.name}`,
+      text: `目前還差 ${powerGap} 戰力，先用金幣升龍等級。`,
+      meta: `${levelCost} 金 · ${powerMeta}`,
+    };
+  }
+  if (powerGap > 0 && dragonMeta.stars < 5 && state.meta.scales >= starCost) {
+    return {
+      entry: "dragons",
+      label: "升星可行",
+      title: `${dragon.name}升星`,
+      text: "升星會提高基礎戰力，也能解鎖更高階幻化。",
+      meta: `${starCost} 晶 · ${powerMeta}`,
+    };
+  }
+  if (!artifactMeta.unlocked && state.meta.scales >= artifact.cost) {
+    return {
+      entry: "artifact",
+      label: "大絕封印",
+      title: `啟動${artifact.name}`,
+      text: `${dragon.ultimateName}會在能量滿時自動施放。`,
+      meta: `${artifact.cost} 晶 · ${powerMeta}`,
+    };
+  }
+  if (powerGap > 0 && state.meta.gold >= equipmentCost) {
+    return {
+      entry: "growth",
+      label: "裝備強化",
+      title: "強化六角晶體",
+      text: "裝備會同步補生命、攻擊、速度、吞噬與防禦。",
+      meta: `${equipmentCost} 金 · ${powerMeta}`,
+    };
+  }
+  if (loadoutIds.length < loadoutLimit) {
+    return {
+      entry: "growth",
+      label: "戰術空槽",
+      title: "補滿技能搭配",
+      text: "出戰會自帶搭配技能 Lv.1，並提高局內出現率。",
+      meta: `戰術 ${loadoutIds.length}/${loadoutLimit} · ${powerMeta}`,
+    };
+  }
+  if (artifactMeta.unlocked && state.meta.scales >= artifactCost) {
+    return {
+      entry: "artifact",
+      label: "神器可強化",
+      title: `強化${artifact.name}`,
+      text: "提高專屬大絕持續時間與傷害。",
+      meta: `${artifactCost} 晶 · ${powerMeta}`,
+    };
+  }
+  if (powerGap > Math.max(80, stage.power * 0.08)) {
+    return {
+      entry: "stage",
+      label: "資源不足",
+      title: "回刷已通關主線",
+      text: "先選較早關卡拿資源，再回來推進目前主線。",
+      meta: powerMeta,
+    };
+  }
+  return {
+    entry: "battle",
+    label: "可以出戰",
+    title: `挑戰${stage.name}`,
+    text: "戰力接近建議值，確認神器與技能後進關卡。",
+    meta: powerMeta,
+  };
+}
+
+function renderNextAction(dragon, stage, power) {
+  if (!ui.nextActionButton) return;
+  const action = nextActionRecommendation(dragon, stage, power);
+  ui.nextActionButton.dataset.entry = action.entry;
+  ui.nextActionLabel.textContent = action.label;
+  ui.nextActionTitle.textContent = action.title;
+  ui.nextActionText.textContent = action.text;
+  ui.nextActionMeta.textContent = action.meta;
+}
+
 function renderHome() {
   const dragon = selectedDragon();
   const dragonMeta = getDragonMeta(dragon);
@@ -1834,6 +1943,7 @@ function renderHome() {
   ui.skillText.textContent = `吞噬學 +${state.meta.skillLevel} · 戰術 ${loadoutIds.length}/${loadoutLimit}`;
   ui.summonText.textContent = "80晶";
   renderSaveStatus();
+  renderNextAction(dragon, stage, power);
 
   renderDragonPreview();
   renderFormPanel();
@@ -5857,6 +5967,9 @@ canvas.addEventListener("pointercancel", handleCanvasUp);
 ui.startButton.addEventListener("click", openStageBriefing);
 ui.stageBriefStartButton.addEventListener("click", startBriefedRun);
 ui.stageBriefCloseButton.addEventListener("click", closeStageBriefing);
+ui.nextActionButton?.addEventListener("click", () => {
+  openHomeEntry(ui.nextActionButton.dataset.entry || "battle");
+});
 ui.levelButton.addEventListener("click", () => {
   const dragon = selectedDragon();
   const meta = getDragonMeta(dragon);

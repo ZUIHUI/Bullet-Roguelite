@@ -666,6 +666,7 @@ h2 {
 .home-header,
 .resource-strip,
 .entry-grid,
+.next-action-panel,
 .featured-dragon,
 .launch-bar,
 .home-tabs {
@@ -784,6 +785,68 @@ h2 {
 .entry-button.primary-entry span,
 .entry-button.primary-entry strong {
   color: #05100f;
+}
+
+.next-action-panel {
+  display: grid;
+}
+
+.next-action-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  align-items: center;
+  min-height: 74px;
+  padding: 11px 12px;
+  border: 1px solid rgba(66, 239, 210, 0.2);
+  border-radius: 8px;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 88% 22%, rgba(66, 239, 210, 0.18), transparent 38%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.04)),
+    rgba(5, 9, 14, 0.78);
+  text-align: left;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+}
+
+.next-action-card span,
+.next-action-card em,
+.next-action-card b {
+  min-width: 0;
+  font-style: normal;
+  line-height: 1.25;
+}
+
+.next-action-card span {
+  color: var(--aqua);
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.next-action-card strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.1;
+}
+
+.next-action-card em {
+  grid-column: 1 / -1;
+  color: rgba(241, 246, 255, 0.72);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.next-action-card b {
+  justify-self: end;
+  align-self: start;
+  padding: 4px 7px;
+  border: 1px solid rgba(255, 209, 102, 0.18);
+  border-radius: 999px;
+  color: #fff2bd;
+  background: rgba(255, 209, 102, 0.08);
+  font-size: 0.7rem;
+  font-weight: 900;
 }
 
 .featured-dragon {

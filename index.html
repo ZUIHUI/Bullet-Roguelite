@@ -6,8 +6,8 @@
     <meta name="theme-color" content="#05070d" />
     <title>星吞龍</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="icon" href="./assets/app-icon.png?v=64" type="image/png" />
-    <link rel="stylesheet" href="./styles.css?v=64" />
+    <link rel="icon" href="./assets/app-icon.png?v=65" type="image/png" />
+    <link rel="stylesheet" href="./styles.css?v=65" />
   </head>
   <body>
     <main class="game-shell" aria-label="星吞龍遊戲">
@@ -120,6 +120,15 @@
             <button class="entry-button" type="button" data-entry="summon">
               <span>召喚</span>
               <strong>抽龍</strong>
+            </button>
+          </section>
+
+          <section id="nextActionPanel" class="next-action-panel" aria-label="推薦養成">
+            <button id="nextActionButton" class="next-action-card" type="button">
+              <span id="nextActionLabel">下一步</span>
+              <strong id="nextActionTitle">準備出戰</strong>
+              <em id="nextActionText">確認出戰龍與關卡。</em>
+              <b id="nextActionMeta">戰力評估中</b>
             </button>
           </section>
 
@@ -245,6 +254,6 @@
       </section>
     </main>
 
-    <script src="./game.js?v=64"></script>
+    <script src="./game.js?v=65"></script>
   </body>
 </html>
