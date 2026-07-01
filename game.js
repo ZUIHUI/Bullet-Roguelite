@@ -91,7 +91,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "60";
+const ASSET_VERSION = "61";
 const COMBAT_TUNING = {
   tailSway: 0.28,
   tailLift: 0.36,
@@ -2568,6 +2568,48 @@ function damageEnemy(enemy, amount, color = enemy.color) {
   return damage;
 }
 
+function applyShotImpact(shot, enemy) {
+  const impact = shot.impact || shot.shape;
+  if (!impact) return;
+
+  if (impact === "fire") {
+    enemy.scorch = Math.max(enemy.scorch || 0, enemy.kind === "boss" ? 0.42 : 0.62);
+    addParticles(enemy.x, enemy.y, 3, "#ffb84d", 96);
+  } else if (impact === "bubble") {
+    enemy.chill = Math.max(enemy.chill || 0, 0.28);
+    enemy.shoot += 0.08;
+    absorbOrShatterBullets(enemy.x, enemy.y, enemy.kind === "boss" ? 28 : 38, false, shot.color);
+  } else if (impact === "leaf") {
+    enemy.wither = Math.max(enemy.wither || 0, 0.7);
+    if (state.player) {
+      state.player.hp = Math.min(state.player.maxHp, state.player.hp + (enemy.kind === "boss" ? 0.006 : 0.014));
+    }
+  } else if (impact === "bolt") {
+    enemy.shoot += 0.1;
+    enemy.jolt = Math.max(enemy.jolt || 0, 0.18);
+  } else if (impact === "crystal") {
+    enemy.chill = Math.max(enemy.chill || 0, enemy.kind === "boss" ? 0.42 : 0.62);
+    enemy.shoot += enemy.kind === "boss" ? 0.06 : 0.12;
+  } else if (impact === "blade") {
+    enemy.shadowMark = Math.max(enemy.shadowMark || 0, 0.75);
+    if (enemy.hp < enemy.maxHp * 0.38) {
+      damageEnemy(enemy, shot.damage * 0.055, shot.color);
+    }
+  } else if (impact === "hammer" || impact === "gear") {
+    const push = impact === "hammer" ? 7 : 4;
+    enemy.y = Math.max(24, enemy.y - push * (enemy.kind === "boss" ? 0.35 : 1));
+    enemy.jolt = Math.max(enemy.jolt || 0, 0.2);
+  } else if (impact === "petal") {
+    enemy.wither = Math.max(enemy.wither || 0, 0.46);
+    addParticles(enemy.x, enemy.y, 4, shot.color, 84);
+  } else if (impact === "void") {
+    enemy.shadowMark = Math.max(enemy.shadowMark || 0, 0.55);
+    enemy.shoot += enemy.kind === "boss" ? 0.04 : 0.09;
+  } else if (impact === "star") {
+    addUltimateCharge(enemy.kind === "boss" ? 0.08 : 0.18);
+  }
+}
+
 function spawnEnemy(kind = "normal") {
   const wave = state.wave;
   const roll = Math.random();
@@ -2721,6 +2763,21 @@ function spawnEnemyHazard(enemy) {
   }
 }
 
+function dragonProjectileShape(dragonId) {
+  return {
+    astral: "star",
+    ember: "fire",
+    tide: "bubble",
+    jade: "leaf",
+    volt: "bolt",
+    frost: "crystal",
+    shadow: "blade",
+    metal: "gear",
+    bloom: "petal",
+    void: "void",
+  }[dragonId] || "star";
+}
+
 function firePlayerShots() {
   const player = state.player;
   if (!player) return;
@@ -2765,6 +2822,8 @@ function firePlayerShots() {
     splashRadius = 0,
     splashDamage = 0,
     accel = 0,
+    impact = shape,
+    trail = shape,
   }) => {
     state.shots.push({
       x: player.x + x,
@@ -2788,6 +2847,8 @@ function firePlayerShots() {
       splashRadius,
       splashDamage,
       accel,
+      impact,
+      trail,
     });
   };
 
@@ -3038,6 +3099,7 @@ function releaseBreath() {
     ? stored
     : Array.from({ length: fallbackCount }, () => ({ color: "#ffd166", power: 8, radius: 6 }));
   const count = Math.min(payload.length, 12 + state.upgrades.storedBonus);
+  const counterShape = dragonProjectileShape(state.currentDragon?.id);
 
   for (let i = 0; i < count; i += 1) {
     const item = payload[i];
@@ -3054,6 +3116,9 @@ function releaseBreath() {
       homing: true,
       turn: 5.2,
       life: 2.6,
+      shape: counterShape,
+      impact: counterShape,
+      trail: counterShape,
     });
   }
 
@@ -3206,6 +3271,7 @@ function emitUltimatePulse(active, levelMult) {
     void: 4,
   };
   const count = shotCountByDragon[dragonId] || 3;
+  const pulseShape = dragonProjectileShape(dragonId);
   for (let i = 0; i < count; i += 1) {
     const middle = (count - 1) / 2;
     const lane = i - middle;
@@ -3226,6 +3292,9 @@ function emitUltimatePulse(active, levelMult) {
       life: dragonId === "ember" ? 1.2 : 2.2,
       burn: dragonId === "bloom" || dragonId === "ember",
       slow: dragonId === "frost" || dragonId === "tide",
+      shape: pulseShape,
+      impact: pulseShape,
+      trail: pulseShape,
     });
   }
 
@@ -3281,10 +3350,22 @@ function updatePlayer(dt) {
 function updateEnemies(dt) {
   for (let i = state.enemies.length - 1; i >= 0; i -= 1) {
     const enemy = state.enemies[i];
-    enemy.y += enemy.speed * dt;
-    enemy.x += Math.sin(state.time * 1.35 + enemy.phase) * (enemy.type === "skimmer" ? 74 : 34) * dt;
+    const chillT = enemy.chill || 0;
+    const witherT = enemy.wither || 0;
+    const joltT = enemy.jolt || 0;
+    const motionMult = chillT > 0 ? (enemy.kind === "boss" ? 0.82 : 0.66) : 1;
+    if (enemy.scorch > 0) {
+      enemy.scorch = Math.max(0, enemy.scorch - dt);
+      damageEnemy(enemy, dt * (enemy.kind === "boss" ? 1.1 : 1.8), "#ffb84d");
+    }
+    enemy.chill = Math.max(0, chillT - dt);
+    enemy.wither = Math.max(0, witherT - dt);
+    enemy.jolt = Math.max(0, joltT - dt);
+    enemy.shadowMark = Math.max(0, (enemy.shadowMark || 0) - dt);
+    enemy.y += enemy.speed * motionMult * dt;
+    enemy.x += Math.sin(state.time * 1.35 + enemy.phase) * (enemy.type === "skimmer" ? 74 : 34) * motionMult * dt;
     enemy.x = clamp(enemy.x, enemy.r + 8, state.w - enemy.r - 8);
-    enemy.shoot -= dt;
+    enemy.shoot -= dt * (witherT > 0 ? 0.9 : 1);
     enemy.hazard -= dt;
 
     if (enemy.y > 32 && enemy.shoot <= 0) {
@@ -3610,6 +3691,7 @@ function updateShots(dt) {
             }
           }
         }
+        applyShotImpact(shot, enemy);
         addParticles(shot.x, shot.y, 4, shot.color, 80);
         if (shot.pierce > 0) {
           shot.pierce -= 1;
@@ -5034,6 +5116,38 @@ function drawEnemyHealth(enemy) {
   ctx.fillRect(-width / 2, y, width * clamp(enemy.hp / enemy.maxHp, 0, 1), 3);
 }
 
+function drawEnemyStatusEffects(enemy, colors) {
+  const effects = [
+    { time: enemy.scorch || 0, color: "#ffb84d", radius: 1.18, spin: 2.6 },
+    { time: enemy.chill || 0, color: "#d8f7ff", radius: 1.32, spin: -1.5 },
+    { time: enemy.wither || 0, color: "#77f5a6", radius: 1.08, spin: 1.8 },
+    { time: enemy.jolt || 0, color: colors.accent, radius: 1.4, spin: 5.2 },
+    { time: enemy.shadowMark || 0, color: "#c084fc", radius: 1.24, spin: -2.4 },
+  ].filter((effect) => effect.time > 0.02);
+  if (!effects.length) return;
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (const [index, effect] of effects.entries()) {
+    const pulse = 1 + Math.sin(state.time * 8 + index) * 0.08;
+    ctx.globalAlpha = clamp(effect.time, 0, 1) * 0.34;
+    ctx.strokeStyle = effect.color;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, enemy.r * effect.radius * pulse, state.time * effect.spin, state.time * effect.spin + Math.PI * 1.45);
+    ctx.stroke();
+    ctx.globalAlpha *= 0.72;
+    ctx.fillStyle = effect.color;
+    for (let i = 0; i < 3; i += 1) {
+      const angle = state.time * effect.spin + i * TAU / 3 + index;
+      ctx.beginPath();
+      ctx.arc(Math.cos(angle) * enemy.r * effect.radius, Math.sin(angle) * enemy.r * effect.radius, 1.6, 0, TAU);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 function drawEnemies() {
   for (const enemy of state.enemies) {
     const colors = enemySkinColors(enemy);
@@ -5057,14 +5171,82 @@ function drawEnemies() {
     }
 
     ctx.shadowBlur = 0;
+    drawEnemyStatusEffects(enemy, colors);
     drawEnemyHealth(enemy);
     ctx.restore();
   }
 }
 
+function drawProjectileTrail(shot, shape) {
+  const speed = Math.hypot(shot.vx, shot.vy) || 1;
+  const nx = shot.vx / speed;
+  const ny = shot.vy / speed;
+  const trailLengthByShape = {
+    fire: 38,
+    bubble: 24,
+    leaf: 42,
+    bolt: 34,
+    crystal: 30,
+    blade: 52,
+    hammer: 24,
+    gear: 28,
+    petal: 44,
+    void: 48,
+    star: 36,
+  };
+  const length = (trailLengthByShape[shape] || 34) * (shot.homing ? 1.12 : 1);
+  const tx = shot.x - nx * length;
+  const ty = shot.y - ny * length;
+  const sideX = -ny;
+  const sideY = nx;
+  const trail = ctx.createLinearGradient(tx, ty, shot.x, shot.y);
+  trail.addColorStop(0, colorAlpha(shot.color, 0));
+  trail.addColorStop(0.58, colorAlpha(shot.color, shape === "void" ? 0.24 : 0.18));
+  trail.addColorStop(1, colorAlpha(shot.color, shape === "bolt" ? 0.7 : 0.48));
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.strokeStyle = trail;
+  ctx.lineWidth = shape === "hammer" ? 5 : shape === "bubble" ? 3.2 : 2.1;
+  ctx.beginPath();
+  if (shape === "leaf" || shape === "petal" || shape === "blade") {
+    const sway = Math.sin(state.time * 8 + (shot.wavePhase || 0)) * shot.r * 0.85;
+    ctx.moveTo(tx + sideX * sway, ty + sideY * sway);
+    ctx.quadraticCurveTo(
+      shot.x - nx * length * 0.5 - sideX * sway * 0.6,
+      shot.y - ny * length * 0.5 - sideY * sway * 0.6,
+      shot.x,
+      shot.y,
+    );
+  } else if (shape === "bolt") {
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(shot.x - nx * length * 0.62 + sideX * shot.r * 1.2, shot.y - ny * length * 0.62 + sideY * shot.r * 1.2);
+    ctx.lineTo(shot.x - nx * length * 0.28 - sideX * shot.r * 0.9, shot.y - ny * length * 0.28 - sideY * shot.r * 0.9);
+    ctx.lineTo(shot.x, shot.y);
+  } else {
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(shot.x, shot.y);
+  }
+  ctx.stroke();
+
+  if (shape === "bubble" || shape === "void" || shape === "star") {
+    ctx.globalAlpha = shape === "void" ? 0.18 : 0.22;
+    ctx.strokeStyle = colorAlpha(shot.color, 0.52);
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 2; i += 1) {
+      const t = 0.38 + i * 0.28;
+      ctx.beginPath();
+      ctx.arc(shot.x - nx * length * t, shot.y - ny * length * t, shot.r * (0.62 + i * 0.34), 0, TAU);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 function drawProjectiles() {
   for (const shot of state.shots) {
     const shape = shot.shape || "star";
+    drawProjectileTrail(shot, shot.trail || shape);
     ctx.save();
     ctx.translate(shot.x, shot.y);
     ctx.rotate(Math.atan2(shot.vy, shot.vx) + Math.PI / 2);
