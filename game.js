@@ -91,7 +91,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "61";
+const ASSET_VERSION = "62";
 const COMBAT_TUNING = {
   tailSway: 0.28,
   tailLift: 0.36,
@@ -1061,6 +1061,8 @@ let saveStore = {
   uid: "",
   deviceId: "",
   saveDocId: "",
+  legacyDeviceDocId: "",
+  legacyDeviceDocRef: null,
 };
 
 function getDeviceId() {
@@ -1089,8 +1091,8 @@ function shortSaveSegment(value, head = 12, tail = 8) {
   return text.length > head + tail + 3 ? `${text.slice(0, head)}...${text.slice(-tail)}` : text;
 }
 
-function firebaseDocPath() {
-  return saveStore.saveDocId ? `${FIREBASE_COLLECTION}/${saveStore.saveDocId}` : FIREBASE_COLLECTION;
+function firebaseDocPath(docId = saveStore.saveDocId) {
+  return docId ? `${FIREBASE_COLLECTION}/${docId}` : FIREBASE_COLLECTION;
 }
 
 function saveOwnerKey() {
@@ -1111,6 +1113,7 @@ function firebaseSavePayload(meta) {
     uid: saveStore.uid,
     deviceId: saveStore.deviceId,
     saveDocId: saveStore.saveDocId,
+    legacyDeviceDocPath: saveStore.legacyDeviceDocId ? firebaseDocPath(saveStore.legacyDeviceDocId) : "",
     meta: JSON.parse(JSON.stringify(meta)),
     updatedAt: saveStore.serverTimestamp(),
   };
@@ -1127,7 +1130,9 @@ function renderSaveStatus() {
         : "本機裝置";
   ui.saveStatus.textContent = isFirebase ? `Firestore / ${identityLabel}` : "本機快取 / 未連線";
   ui.saveDoc.textContent = isFirebase ? firebaseDocPath() : `${FIREBASE_COLLECTION}/${shortSaveSegment(saveStore.saveDocId)}`;
-  ui.saveIdentity.textContent = `${saveOwnerKey()} · ${FIREBASE_SAVE_SLOT}`;
+  ui.saveIdentity.textContent = saveStore.legacyDeviceDocId
+    ? `${saveOwnerKey()} · ${FIREBASE_SAVE_SLOT} · 已檢查裝置備援`
+    : `${saveOwnerKey()} · ${FIREBASE_SAVE_SLOT}`;
 }
 
 async function resolveFirebaseIdentity(app, authModule) {
@@ -1281,6 +1286,7 @@ async function initFirebaseStore() {
       console.warn("Anonymous auth unavailable; using device save id.", error);
     }
     const saveDocId = buildSaveDocId(identity.identityType, identity.userId);
+    const legacyDeviceDocId = identity.identityType === "anonymous" ? buildSaveDocId("device", deviceId) : "";
     return {
       type: "firebase",
       identityType: identity.identityType,
@@ -1289,6 +1295,8 @@ async function initFirebaseStore() {
       deviceId,
       saveDocId,
       docRef: doc(db, FIREBASE_COLLECTION, saveDocId),
+      legacyDeviceDocId,
+      legacyDeviceDocRef: legacyDeviceDocId ? doc(db, FIREBASE_COLLECTION, legacyDeviceDocId) : null,
       getDoc,
       serverTimestamp,
       setDoc,
@@ -1303,6 +1311,8 @@ async function initFirebaseStore() {
       uid: "",
       deviceId,
       saveDocId: buildSaveDocId("device", deviceId),
+      legacyDeviceDocId: "",
+      legacyDeviceDocRef: null,
     };
   }
 }
@@ -1322,18 +1332,35 @@ async function syncFirebaseMeta(localMeta, hasLocalSave = true) {
   if (saveStore.type !== "firebase") return;
 
   try {
-    const snapshot = await withTimeout(saveStore.getDoc(saveStore.docRef), 4500, null);
+    const [snapshot, legacySnapshot] = await Promise.all([
+      withTimeout(saveStore.getDoc(saveStore.docRef), 4500, null),
+      saveStore.legacyDeviceDocRef
+        ? withTimeout(
+            saveStore.getDoc(saveStore.legacyDeviceDocRef).catch((error) => {
+              console.warn("Legacy device save unavailable; continuing with current owner doc.", error);
+              return null;
+            }),
+            4500,
+            null,
+          )
+        : Promise.resolve(null),
+    ]);
     let nextMeta = state.meta || localMeta;
     if (snapshot?.exists()) {
       const data = snapshot.data();
       const remoteMeta = mergeMeta(data.meta || data);
       nextMeta = chooseBestMeta(localMeta, remoteMeta, hasLocalSave);
-      state.meta = nextMeta;
-      persistLocalMeta(nextMeta);
-      renderHome();
-      updateHud();
+    }
+    if (legacySnapshot?.exists()) {
+      const legacyData = legacySnapshot.data();
+      const legacyMeta = mergeMeta(legacyData.meta || legacyData);
+      nextMeta = chooseBestMeta(nextMeta, legacyMeta, true);
     }
 
+    state.meta = nextMeta;
+    persistLocalMeta(nextMeta);
+    renderHome();
+    updateHud();
     await withTimeout(
       saveStore.setDoc(
         saveStore.docRef,

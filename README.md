@@ -15,7 +15,7 @@
 - 標題徽章：主畫面不再顯示原本的圖片式標題 icon，改用 CSS 繪製的發光龍紋徽章。
 - 戰鬥表現：主畫面與龍卡使用設定集整理出的 PNG；關卡中的龍使用對應的 `battle-*.png` 俯視 CG，再由 canvas 做飛行擺尾、分層呼吸、張嘴吸收、吸入漩渦風場、子彈捲入拖尾、能量環與反吐爆發動畫；10 種龍的普通攻擊有不同彈道、拖尾、命中狀態與反吐/大絕小彈形狀。
 - 敵人美術：小怪、快怪、重甲怪、菁英與 Boss 會依關卡主題色繪製成魂燈、翼刃、熔甲、祭司與龍王影等主視覺 skin。
-- 存檔：單人進度會寫入 Firebase Firestore `singlePlayerSaves/{gameId__anonymous_uid__slot}`；若 Anonymous Auth 尚未啟用，會暫時退回 `singlePlayerSaves/{gameId__device_deviceId__slot}`，並同步保留一份本機快取。養成頁會顯示目前存檔來源、文件路徑與 owner key，方便在 Firebase console 對照不同使用者。
+- 存檔：單人進度會寫入 Firebase Firestore `singlePlayerSaves/{gameId__anonymous_uid__slot}`；若 Anonymous Auth 尚未啟用，會暫時退回 `singlePlayerSaves/{gameId__device_deviceId__slot}`，並同步保留一份本機快取。啟用 Anonymous Auth 後會自動檢查同裝置舊的 device 備援文件，選擇本機、匿名雲端、裝置備援中進度較完整的一份寫回目前使用者文件。養成頁會顯示目前存檔來源、文件路徑與 owner key，方便在 Firebase console 對照不同使用者。
 
 ## 開啟
 
