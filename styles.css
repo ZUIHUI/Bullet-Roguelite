@@ -1087,7 +1087,7 @@ h2 {
 .stage-card {
   position: relative;
   display: grid;
-  grid-template-columns: 42px 1fr;
+  grid-template-columns: 54px 1fr;
   gap: 10px;
   align-items: center;
   min-height: 104px;
@@ -1097,7 +1097,7 @@ h2 {
   position: relative;
   z-index: 1;
   display: grid;
-  width: 38px;
+  width: 50px;
   height: 38px;
   place-items: center;
   border: 2px solid rgba(66, 239, 210, 0.8);
@@ -1105,6 +1105,7 @@ h2 {
   color: #06100f;
   background: linear-gradient(135deg, var(--aqua), var(--gold));
   box-shadow: 0 0 20px rgba(66, 239, 210, 0.24);
+  font-size: 0.72rem;
   font-weight: 950;
   line-height: 1;
 }
