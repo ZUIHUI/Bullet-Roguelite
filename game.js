@@ -69,26 +69,26 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "53";
+const ASSET_VERSION = "55";
 const COMBAT_TUNING = {
-  tailSway: 0.46,
-  tailLift: 0.58,
-  tailRotate: 0.5,
-  tailTrail: 0.44,
-  playerShotDamage: 0.68,
-  playerShotCooldown: 1.14,
-  absorbShotDamage: 0.86,
-  absorbShotCooldown: 1.08,
-  breathShotDamage: 0.68,
-  breathBeamDamage: 0.52,
-  ultimateDamage: 0.62,
-  ultimateTickDelay: 1.14,
-  enemyHp: 1.16,
-  enemySpeed: 1.07,
-  enemyBulletSpeed: 1.04,
-  enemyBulletDamage: 1.08,
-  enemyShootDelay: 0.92,
-  enemySpawnPace: 0.82,
+  tailSway: 0.28,
+  tailLift: 0.36,
+  tailRotate: 0.3,
+  tailTrail: 0.24,
+  playerShotDamage: 0.5,
+  playerShotCooldown: 1.27,
+  absorbShotDamage: 0.68,
+  absorbShotCooldown: 1.2,
+  breathShotDamage: 0.42,
+  breathBeamDamage: 0.3,
+  ultimateDamage: 0.36,
+  ultimateTickDelay: 1.32,
+  enemyHp: 1.28,
+  enemySpeed: 1.1,
+  enemyBulletSpeed: 1.08,
+  enemyBulletDamage: 1.12,
+  enemyShootDelay: 0.84,
+  enemySpawnPace: 0.68,
 };
 const DEFAULT_STAGE_BACKGROUND_ID = "dragon-ritual-arena";
 const STAGE_BACKGROUND_BY_ART = {
@@ -855,9 +855,9 @@ const RUN_SKILLS = [
     title: "分裂吐息",
     element: "星",
     detail: "自動射擊彈道增加",
-    max: 3,
+    max: 2,
     apply() {
-      state.upgrades.shotSpread = clamp(state.upgrades.shotSpread + 1, 1, 3);
+      state.upgrades.shotSpread = clamp(state.upgrades.shotSpread + 1, 1, 2);
     },
   },
   {
@@ -868,7 +868,7 @@ const RUN_SKILLS = [
     detail: "自動射擊速度提升",
     max: 5,
     apply() {
-      state.upgrades.shotCooldown = Math.max(0.105, state.upgrades.shotCooldown * 0.9);
+      state.upgrades.shotCooldown = Math.max(0.13, state.upgrades.shotCooldown * 0.93);
     },
   },
   {
@@ -879,7 +879,7 @@ const RUN_SKILLS = [
     detail: "吞彈反擊與大絕傷害提升",
     max: 5,
     apply() {
-      state.upgrades.counterMult += 0.16;
+      state.upgrades.counterMult += 0.11;
     },
   },
   {
@@ -1371,10 +1371,10 @@ function equipmentBonus(tiers = equipmentTiers()) {
   const totalTier = Object.values(tiers).reduce((sum, tier) => sum + tier, 0);
   return {
     hp: tiers.scale * 0.55,
-    attackMult: 1 + tiers.fang * 0.045 + tiers.relic * 0.015,
+    attackMult: 1 + tiers.fang * 0.035 + tiers.relic * 0.01,
     speedMult: 1 + tiers.wing * 0.025,
     swallowMult: 1 + tiers.vortex * 0.05,
-    counterMult: 1 + tiers.relic * 0.05,
+    counterMult: 1 + tiers.relic * 0.035,
     guard: tiers.guard,
     charge: tiers.relic * 4,
     power: totalTier * 28,
@@ -2090,9 +2090,9 @@ function resetRun() {
   state.score = 0;
   state.kills = 0;
   state.wave = 1;
-  state.nextUpgrade = 9;
+  state.nextUpgrade = 12;
   state.stageKills = 0;
-  state.stageTargetKills = state.currentStage.waves * 10;
+  state.stageTargetKills = state.currentStage.waves * 13;
   state.stageElapsed = 0;
   state.announcedWave = 1;
   state.waveBannerTimer = 1.4;
@@ -2105,7 +2105,7 @@ function resetRun() {
   state.ultimateCooldown = 0;
   state.ultimateActive = null;
   state.runSkills = {};
-  state.spawnTimer = 0.4;
+  state.spawnTimer = 0.28;
   state.shake = 0;
   state.flash = 0;
   state.player = createPlayer();
@@ -2118,7 +2118,7 @@ function resetRun() {
   state.breaths = [];
   const stats = activeDragonStats();
   state.upgrades = {
-    shotDamage: (13 * stats.attack + (state.meta.skillLevel || 0) * 1.2) * COMBAT_TUNING.playerShotDamage,
+    shotDamage: (13 * stats.attack + (state.meta.skillLevel || 0) * 0.8) * COMBAT_TUNING.playerShotDamage,
     shotCooldown: ((state.currentForm.id === "swift" ? 0.145 : 0.17) / stats.speed) * COMBAT_TUNING.playerShotCooldown,
     shotTimer: 0,
     shotSpread: 1,
@@ -2373,7 +2373,7 @@ function nearestEnemy(x, y) {
 function enemyDamageMultiplier(enemy) {
   const hunterLevel = state.upgrades.eliteHunter || 0;
   if (!hunterLevel || enemy.kind === "normal" || enemy.kind === "demo") return 1;
-  return enemy.kind === "boss" ? 1 + hunterLevel * 0.16 : 1 + hunterLevel * 0.12;
+  return enemy.kind === "boss" ? 1 + hunterLevel * 0.11 : 1 + hunterLevel * 0.08;
 }
 
 function damageEnemy(enemy, amount, color = enemy.color) {
@@ -2405,8 +2405,8 @@ function spawnEnemy(kind = "normal") {
     Object.assign(enemy, {
       type: "boss",
       r: 38,
-      hp: 520 + wave * 70 + state.currentStage.power,
-      speed: 16,
+      hp: 620 + wave * 82 + state.currentStage.power,
+      speed: 18,
       pattern: "fan",
       color: state.currentStage.theme,
       score: 1200,
@@ -2418,8 +2418,8 @@ function spawnEnemy(kind = "normal") {
     Object.assign(enemy, {
       type: "elite",
       r: 29,
-      hp: 190 + wave * 28,
-      speed: 28 + wave * 2,
+      hp: 220 + wave * 32,
+      speed: 31 + wave * 2.2,
       pattern: roll < 0.5 ? "fan" : "spray",
       color: "#ffd166",
       score: 430,
@@ -2429,8 +2429,8 @@ function spawnEnemy(kind = "normal") {
     Object.assign(enemy, {
       type: "brute",
       r: 24,
-      hp: 72 + wave * 8,
-      speed: 38 + wave * 3,
+      hp: 84 + wave * 9,
+      speed: 42 + wave * 3.2,
       pattern: "fan",
       color: "#ffd166",
       score: 160,
@@ -2439,8 +2439,8 @@ function spawnEnemy(kind = "normal") {
     Object.assign(enemy, {
       type: "skimmer",
       r: 15,
-      hp: 30 + wave * 4,
-      speed: 86 + wave * 6,
+      hp: 36 + wave * 5,
+      speed: 92 + wave * 6.4,
       pattern: "spray",
       color: "#9b7cff",
       score: 115,
@@ -2449,8 +2449,8 @@ function spawnEnemy(kind = "normal") {
     Object.assign(enemy, {
       type: "wisp",
       r: 18,
-      hp: 42 + wave * 5,
-      speed: 58 + wave * 4,
+      hp: 48 + wave * 6,
+      speed: 64 + wave * 4.4,
       pattern: wave > 3 && roll > 0.82 ? "fan" : "single",
       color: "#42efd2",
       score: 125,
@@ -3365,7 +3365,7 @@ function updateShots(dt) {
         }
         if (shot.burn || splashBurn || shot.splashRadius) {
           const splashRadius = shot.splashRadius || (shot.burn ? 92 : 58 + splashBurn * 11);
-          const splashDamage = shot.splashDamage || (shot.burn ? 0.28 : 0.1 + splashBurn * 0.045);
+          const splashDamage = shot.splashDamage || (shot.burn ? 0.23 : 0.08 + splashBurn * 0.035);
           addParticles(enemy.x, enemy.y, 10, "#ffd166", 110);
           for (const nearby of state.enemies) {
             if (nearby !== enemy && dist2(enemy.x, enemy.y, nearby.x, nearby.y) < splashRadius ** 2) {
@@ -3378,7 +3378,7 @@ function updateShots(dt) {
         if (chainRadius) {
           let chains = 0;
           const maxChains = shot.chainRadius ? 3 : 1 + Math.min(3, chainLevel);
-          const chainDamage = shot.chainRadius ? 0.34 : 0.18 + chainLevel * 0.055;
+          const chainDamage = shot.chainRadius ? 0.28 : 0.15 + chainLevel * 0.04;
           for (const nearby of state.enemies) {
             if (nearby !== enemy && chains < maxChains && dist2(enemy.x, enemy.y, nearby.x, nearby.y) < chainRadius ** 2) {
               damageEnemy(nearby, shot.damage * chainDamage, shot.color);
@@ -3514,14 +3514,14 @@ function update(dt) {
     spawnEnemy("boss");
     state.bossSpawned = true;
     showWaveBanner("Boss 來襲");
-    state.spawnTimer = 2.4;
+    state.spawnTimer = 2.0;
   } else if (!state.bossSpawned && state.elitesSpawned < state.currentStage.waves - 1) {
     const eliteWave = state.elitesSpawned + 2;
     const killPressure = state.stageKills >= (state.elitesSpawned + 1) * 12;
     if (state.wave >= eliteWave || killPressure) {
       spawnEnemy("elite");
       state.elitesSpawned += 1;
-      state.spawnTimer = 1.4;
+      state.spawnTimer = 1.1;
     }
   }
 
@@ -3529,13 +3529,15 @@ function update(dt) {
     const stagePressure = stageIndex(state.currentStage);
     const packCount =
       1 +
-      (state.wave >= 4 && Math.random() < 0.28 ? 1 : 0) +
-      (state.wave >= 7 && Math.random() < 0.24 ? 1 : 0) +
-      (stagePressure >= 5 && Math.random() < 0.2 ? 1 : 0);
+      (state.wave >= 2 && Math.random() < 0.22 ? 1 : 0) +
+      (state.wave >= 4 && Math.random() < 0.36 ? 1 : 0) +
+      (state.wave >= 7 && Math.random() < 0.32 ? 1 : 0) +
+      (stagePressure >= 5 && Math.random() < 0.28 ? 1 : 0) +
+      (stagePressure >= 10 && Math.random() < 0.22 ? 1 : 0);
     for (let i = 0; i < packCount; i += 1) {
       spawnEnemy();
     }
-    const pace = Math.max(0.36, (1.13 - state.wave * 0.053) * COMBAT_TUNING.enemySpawnPace);
+    const pace = Math.max(0.32, (1.08 - state.wave * 0.055) * COMBAT_TUNING.enemySpawnPace);
     state.spawnTimer = rand(pace * 0.58, pace * 0.98);
   }
 
@@ -4309,17 +4311,17 @@ function drawTailLayer(image, frame, drawX, drawY, spriteW, spriteH, time, motio
   const tailStart = 0.42;
   const segments = 12;
   const band = (1 - tailStart) / segments;
-  const swallowDrive = 1 + motion.absorbTension * 0.18 + motion.chargeRatio * 0.08;
+  const swallowDrive = 1 + motion.absorbTension * 0.12 + motion.chargeRatio * 0.05;
   for (let i = segments - 1; i >= 0; i -= 1) {
     const p = i / Math.max(1, segments - 1);
     const sourceY = tailStart + i * band;
     const tailWeight = smoothstep(0.05, 1, p);
     const sway = (
-      Math.sin(time * 6.2 + p * TAU * 1.08) * (2 + tailWeight * 23) * swallowDrive +
-      Math.sin(time * 3.6 + p * 6.4) * tailWeight * 5 +
-      motion.flightTilt * (5 + tailWeight * 20)
+      Math.sin(time * 6.2 + p * TAU * 1.08) * (1.5 + tailWeight * 14) * swallowDrive +
+      Math.sin(time * 3.6 + p * 6.4) * tailWeight * 3 +
+      motion.flightTilt * (3 + tailWeight * 13)
     ) * COMBAT_TUNING.tailSway;
-    const lift = Math.cos(time * 5.8 + p * TAU * 1.2) * tailWeight * (2 + motion.absorbTension * 1.6) * COMBAT_TUNING.tailLift;
+    const lift = Math.cos(time * 5.8 + p * TAU * 1.2) * tailWeight * (1.2 + motion.absorbTension * 1.0) * COMBAT_TUNING.tailLift;
     drawSpriteRegion(
       image,
       { x: 0, y: sourceY, w: 1, h: band + 0.006 },
@@ -4333,7 +4335,7 @@ function drawTailLayer(image, frame, drawX, drawY, spriteW, spriteH, time, motio
         frame,
         x: sway,
         y: lift,
-        rotate: Math.sin(time * 5.8 + p * TAU * 1.15) * tailWeight * (0.065 + motion.absorbTension * 0.025) * COMBAT_TUNING.tailRotate,
+        rotate: Math.sin(time * 5.8 + p * TAU * 1.15) * tailWeight * (0.045 + motion.absorbTension * 0.018) * COMBAT_TUNING.tailRotate,
         scaleX: 1 + Math.sin(time * 5.2 + p * TAU) * tailWeight * 0.028,
       },
     );
