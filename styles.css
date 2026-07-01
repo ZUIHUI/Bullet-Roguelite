@@ -273,6 +273,14 @@ button {
   display: flex;
 }
 
+.summon-overlay {
+  z-index: 36;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255, 209, 102, 0.18), transparent 15rem),
+    radial-gradient(circle at 50% 58%, rgba(66, 239, 210, 0.14), transparent 14rem),
+    rgba(3, 4, 8, 0.78);
+}
+
 .home-overlay {
   align-items: stretch;
   justify-content: stretch;
@@ -305,6 +313,87 @@ button {
   gap: 14px;
   padding: 28px 24px 24px;
   text-align: center;
+}
+
+.summon-panel {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 20px;
+  overflow: hidden;
+  text-align: center;
+}
+
+.summon-result-art {
+  position: relative;
+  display: grid;
+  width: min(100%, 260px);
+  aspect-ratio: 1 / 1;
+  place-items: center;
+  margin: 4px auto 0;
+}
+
+.summon-aura {
+  position: absolute;
+  inset: 8%;
+  border: 1px solid rgba(255, 209, 102, 0.52);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(255, 209, 102, 0.28), transparent 58%),
+    conic-gradient(from 0deg, rgba(66, 239, 210, 0.1), rgba(255, 209, 102, 0.48), rgba(166, 120, 255, 0.16), rgba(66, 239, 210, 0.1));
+  filter: blur(0.2px) drop-shadow(0 0 28px rgba(255, 209, 102, 0.28));
+}
+
+.summon-aura::before,
+.summon-aura::after {
+  content: "";
+  position: absolute;
+  inset: 12%;
+  border: 1px dashed rgba(247, 251, 255, 0.34);
+  border-radius: 50%;
+}
+
+.summon-aura::after {
+  inset: -10%;
+  border-style: solid;
+  border-color: rgba(66, 239, 210, 0.24);
+}
+
+.summon-dragon-art {
+  position: relative;
+  z-index: 1;
+  width: 92%;
+  height: 92%;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 22px 24px rgba(0, 0, 0, 0.34))
+    drop-shadow(0 0 22px rgba(255, 209, 102, 0.22));
+}
+
+.summon-panel h2 {
+  max-width: 100%;
+  margin: 0;
+  font-size: clamp(1.55rem, 8vw, 2.55rem);
+  line-height: 1.05;
+}
+
+.summon-result-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+  max-width: 100%;
+}
+
+.summon-result-stats span {
+  min-width: 54px;
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 209, 102, 0.24);
+  border-radius: 999px;
+  color: #fff4c5;
+  background: rgba(255, 209, 102, 0.08);
+  font-size: 0.72rem;
+  font-weight: 850;
 }
 
 .title-sigil {

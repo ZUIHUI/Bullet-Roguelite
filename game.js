@@ -12,6 +12,7 @@ const ui = {
   startOverlay: document.querySelector("#startOverlay"),
   upgradeOverlay: document.querySelector("#upgradeOverlay"),
   endOverlay: document.querySelector("#endOverlay"),
+  summonOverlay: document.querySelector("#summonOverlay"),
   startButton: document.querySelector("#startButton"),
   restartButton: document.querySelector("#restartButton"),
   upgradeChoices: document.querySelector("#upgradeChoices"),
@@ -50,6 +51,12 @@ const ui = {
   skillLoadoutGrid: document.querySelector("#skillLoadoutGrid"),
   summonButton: document.querySelector("#summonButton"),
   summonText: document.querySelector("#summonText"),
+  summonResultLabel: document.querySelector("#summonResultLabel"),
+  summonResultArt: document.querySelector("#summonResultArt"),
+  summonResultTitle: document.querySelector("#summonResultTitle"),
+  summonResultText: document.querySelector("#summonResultText"),
+  summonResultStats: document.querySelector("#summonResultStats"),
+  summonCloseButton: document.querySelector("#summonCloseButton"),
   saveStatus: document.querySelector("#saveStatusText"),
   saveDoc: document.querySelector("#saveDocText"),
   saveIdentity: document.querySelector("#saveIdentityText"),
@@ -71,7 +78,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "56";
+const ASSET_VERSION = "57";
 const COMBAT_TUNING = {
   tailSway: 0.28,
   tailLift: 0.36,
@@ -2072,6 +2079,24 @@ function openHomeEntry(entryId) {
   setHomeTab(entryId);
 }
 
+function showSummonResult(result) {
+  if (!ui.summonOverlay || !result?.dragon) return;
+  const { dragon, label, title, text, stats = [] } = result;
+  ui.summonResultLabel.textContent = label;
+  ui.summonResultTitle.textContent = title;
+  ui.summonResultText.textContent = text;
+  ui.summonResultArt.innerHTML = `
+    <span class="summon-aura" aria-hidden="true"></span>
+    ${dragonArtMarkup(dragon, "summon-dragon-art", dragon.name)}
+  `;
+  ui.summonResultStats.innerHTML = stats.map((item) => `<span>${item}</span>`).join("");
+  ui.summonOverlay.classList.add("active");
+}
+
+function hideSummonResult() {
+  ui.summonOverlay?.classList.remove("active");
+}
+
 const input = {
   target: null,
   pointerId: null,
@@ -2221,6 +2246,7 @@ function resetRun() {
   applyLoadoutSeedSkills();
   input.target = { x: state.player.x, y: state.player.y };
   input.absorbing = false;
+  hideSummonResult();
   ui.startOverlay.classList.remove("active");
   ui.endOverlay.classList.remove("active");
   ui.upgradeOverlay.classList.remove("active");
@@ -3309,6 +3335,7 @@ function showHome() {
   state.runSkills = {};
   ui.endOverlay.classList.remove("active");
   ui.upgradeOverlay.classList.remove("active");
+  hideSummonResult();
   ui.startOverlay.classList.add("active");
   hideWaveBanner();
   updateBossHud();
@@ -5330,6 +5357,7 @@ function performSummon() {
   state.meta.scales -= cost;
   const locked = DRAGONS.filter((dragon) => !state.meta.dragons[dragon.id].owned);
   let message = "";
+  let result = null;
   if (locked.length) {
     const dragon = locked[Math.floor(Math.random() * locked.length)];
     const meta = state.meta.dragons[dragon.id];
@@ -5338,21 +5366,38 @@ function performSummon() {
     meta.stars = 1;
     state.meta.selectedDragonId = dragon.id;
     message = `召喚成功：${dragon.name}`;
+    result = {
+      dragon,
+      label: "dragon call",
+      title: dragon.name,
+      text: `新龍加入冒險團 · ${dragon.passive}`,
+      stats: [`${dragon.element}`, dragon.role, "Lv.1", "1星"],
+    };
     setHomeTab("dragons");
   } else {
     const dragon = selectedDragon();
-    state.meta.dragons[dragon.id].stars += 1;
+    const meta = state.meta.dragons[dragon.id];
+    meta.stars += 1;
     state.meta.scales += 25;
     message = `龍魂共鳴：${dragon.name} 升星`;
+    result = {
+      dragon,
+      label: "soul resonance",
+      title: `${dragon.name} 升星`,
+      text: "所有龍都已加入，召喚轉化為龍魂共鳴並返還 25 龍晶。",
+      stats: [`${meta.stars}星`, `Lv.${meta.level}`, "+25晶", dragon.role],
+    };
     setHomeTab("dragons");
   }
   saveMeta();
   renderHome();
+  showSummonResult(result);
   showWaveBanner(message);
   return true;
 }
 
 ui.summonButton.addEventListener("click", performSummon);
+ui.summonCloseButton.addEventListener("click", hideSummonResult);
 for (const tabButton of ui.tabs) {
   tabButton.addEventListener("click", () => setHomeTab(tabButton.dataset.tab));
 }
