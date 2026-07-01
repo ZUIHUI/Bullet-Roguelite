@@ -91,7 +91,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "59";
+const ASSET_VERSION = "60";
 const COMBAT_TUNING = {
   tailSway: 0.28,
   tailLift: 0.36,
@@ -120,6 +120,14 @@ const STAGE_BACKGROUND_BY_ART = {
   spire: "storm-spire-arena",
   rift: "void-rift-arena",
 };
+const STAGE_ENVIRONMENT_VARIANTS = [
+  { id: "relicGate", name: "斷門遺跡" },
+  { id: "soulChains", name: "魂鎖迴廊" },
+  { id: "fractureCrown", name: "裂冠祭場" },
+  { id: "altarRings", name: "星核祭壇" },
+  { id: "shardRain", name: "浮岩碎雨" },
+  { id: "eclipseCore", name: "蝕月核心" },
+];
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDxQqZWabxFJ0RWc5Xr3bVjBj1QctS4hGE",
   authDomain: "swallow-5407f.firebaseapp.com",
@@ -1618,6 +1626,12 @@ function stageBackgroundId(stage) {
   return stage?.backgroundId || STAGE_BACKGROUND_BY_ART[stage?.artId] || DEFAULT_STAGE_BACKGROUND_ID;
 }
 
+function stageEnvironmentVariant(stage) {
+  const index = Math.max(0, stageIndex(stage));
+  const chapterOffset = Math.max(0, (stage?.chapter || 1) - 1);
+  return STAGE_ENVIRONMENT_VARIANTS[(index + chapterOffset) % STAGE_ENVIRONMENT_VARIANTS.length];
+}
+
 function getStageBackgroundImage(stage) {
   const imageId = stageBackgroundId(stage);
   if (!stageBackgroundImageCache.has(imageId)) {
@@ -2115,6 +2129,7 @@ function openStageBriefing() {
     `每波${stage.waveSeconds}秒`,
     `Boss：${stage.boss}`,
     `建議戰力 ${stage.power}`,
+    `環境：${stageEnvironmentVariant(stage).name}`,
     `獎勵 ${stage.gold}金 / ${stage.scales}晶`,
     `${dragon.name} · ${form.name}`,
     `${artifact.name}`,
@@ -3845,6 +3860,7 @@ function drawBackground() {
   }
 
   drawStageBackdrop(stage);
+  drawStageVariantLayer(stage);
 
   ctx.save();
   ctx.globalAlpha = 0.12;
@@ -3981,6 +3997,144 @@ function drawStageBackdrop(stage) {
     ctx.stroke();
   }
   ctx.restore();
+}
+
+function drawStageVariantLayer(stage) {
+  const variant = stageEnvironmentVariant(stage);
+  const theme = stage.theme || "#42efd2";
+  const accent = stage.bg?.[2] || "#ff6b6b";
+  const index = Math.max(0, stageIndex(stage));
+  const danger = clamp(index / Math.max(1, STAGES.length - 1), 0, 1);
+  const time = state.time;
+  const edge = Math.min(88, state.w * 0.23);
+  const safeTop = state.h * 0.12;
+  const safeBottom = state.h * 0.88;
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+
+  const leftWash = ctx.createLinearGradient(0, 0, edge, 0);
+  leftWash.addColorStop(0, colorAlpha(theme, 0.13 + danger * 0.06));
+  leftWash.addColorStop(1, colorAlpha(theme, 0));
+  ctx.fillStyle = leftWash;
+  ctx.fillRect(0, 0, edge, state.h);
+
+  const rightWash = ctx.createLinearGradient(state.w, 0, state.w - edge, 0);
+  rightWash.addColorStop(0, colorAlpha(accent, 0.12 + danger * 0.05));
+  rightWash.addColorStop(1, colorAlpha(accent, 0));
+  ctx.fillStyle = rightWash;
+  ctx.fillRect(state.w - edge, 0, edge, state.h);
+
+  if (variant.id === "relicGate") {
+    for (let side = 0; side < 2; side += 1) {
+      const x = side ? state.w - edge * 0.72 : edge * 0.2;
+      for (let i = 0; i < 4; i += 1) {
+        const y = safeTop + i * (state.h * 0.19) + Math.sin(time * 0.8 + i) * 5;
+        ctx.globalAlpha = 0.16 + danger * 0.05;
+        ctx.fillStyle = i % 2 ? colorAlpha(accent, 0.58) : colorAlpha(theme, 0.58);
+        ctx.fillRect(x, y, edge * 0.42, 32 + i * 2);
+        ctx.globalAlpha = 0.22;
+        ctx.strokeStyle = i % 2 ? accent : theme;
+        ctx.strokeRect(x + 4, y + 4, edge * 0.42 - 8, 24 + i * 2);
+      }
+    }
+  } else if (variant.id === "soulChains") {
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 9]);
+    for (let i = 0; i < 7; i += 1) {
+      const y = safeTop + i * state.h * 0.11;
+      const drift = Math.sin(time * 1.1 + i) * 14;
+      ctx.globalAlpha = 0.14 + (i % 3) * 0.025 + danger * 0.04;
+      ctx.strokeStyle = i % 2 ? theme : accent;
+      ctx.beginPath();
+      ctx.moveTo(-20, y + drift);
+      ctx.lineTo(edge + 18, y + 32 - drift * 0.4);
+      ctx.moveTo(state.w + 20, y - drift);
+      ctx.lineTo(state.w - edge - 18, y + 30 + drift * 0.4);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  } else if (variant.id === "fractureCrown") {
+    ctx.lineWidth = 1.6;
+    for (let side = 0; side < 2; side += 1) {
+      const baseX = side ? state.w - edge * 0.34 : edge * 0.34;
+      for (let i = 0; i < 11; i += 1) {
+        const y = safeTop + i * ((safeBottom - safeTop) / 10);
+        const crack = Math.sin(i * 1.9 + time * 0.7) * 18;
+        ctx.globalAlpha = 0.16 + danger * 0.07;
+        ctx.strokeStyle = i % 2 ? accent : theme;
+        ctx.beginPath();
+        ctx.moveTo(baseX, y);
+        ctx.lineTo(baseX + (side ? -1 : 1) * (16 + Math.abs(crack)), y + 20);
+        ctx.lineTo(baseX + (side ? -1 : 1) * (6 + Math.abs(crack) * 0.4), y + 42);
+        ctx.stroke();
+      }
+    }
+  } else if (variant.id === "altarRings") {
+    for (let i = 0; i < 5; i += 1) {
+      const x = state.w * (0.16 + (i % 2) * 0.68);
+      const y = state.h * (0.2 + i * 0.14);
+      const radius = 18 + i * 4 + Math.sin(time * 1.4 + i) * 3;
+      ctx.globalAlpha = 0.14 + danger * 0.05;
+      ctx.strokeStyle = i % 2 ? accent : theme;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, TAU);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, radius * 0.55, 0, TAU);
+      ctx.stroke();
+    }
+  } else if (variant.id === "shardRain") {
+    for (let i = 0; i < 18; i += 1) {
+      const side = i % 2 ? 1 : -1;
+      const x = side < 0
+        ? 12 + (i % 5) * (edge * 0.16)
+        : state.w - 12 - (i % 5) * (edge * 0.16);
+      const y = (i * 73 + time * (22 + danger * 18)) % (state.h + 80) - 40;
+      const size = 8 + (i % 4) * 3;
+      ctx.globalAlpha = 0.12 + (i % 3) * 0.03 + danger * 0.04;
+      ctx.fillStyle = i % 2 ? colorAlpha(accent, 0.7) : colorAlpha(theme, 0.7);
+      ctx.beginPath();
+      ctx.moveTo(x, y - size);
+      ctx.lineTo(x + side * size * 0.8, y);
+      ctx.lineTo(x, y + size * 1.4);
+      ctx.lineTo(x - side * size * 0.55, y + size * 0.1);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (variant.id === "eclipseCore") {
+    for (let i = 0; i < 3; i += 1) {
+      const y = i === 1 ? state.h * 0.5 : (i ? state.h * 0.82 : state.h * 0.18);
+      const radiusX = state.w * (0.42 - i * 0.055);
+      const radiusY = 26 + i * 12;
+      ctx.globalAlpha = (i === 1 ? 0.08 : 0.14) + danger * 0.04;
+      ctx.strokeStyle = i % 2 ? accent : theme;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(state.w * 0.5, y, radiusX, radiusY, time * 0.08 + i * 0.7, 0, TAU);
+      ctx.stroke();
+    }
+  }
+
+  ctx.globalAlpha = 0.16 + danger * 0.05;
+  ctx.strokeStyle = theme;
+  ctx.lineWidth = 1.2;
+  for (let i = 0; i < 6; i += 1) {
+    const y = state.h * (0.16 + i * 0.135);
+    const x = i % 2 ? state.w - edge * 0.42 : edge * 0.42;
+    const r = 8 + ((stage.stageNo + i) % 4) * 3;
+    ctx.beginPath();
+    ctx.moveTo(x, y - r);
+    ctx.lineTo(x + r, y);
+    ctx.lineTo(x, y + r);
+    ctx.lineTo(x - r, y);
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  ctx.restore();
+  ctx.globalAlpha = 1;
 }
 
 function drawStageThemeProps(stage) {
