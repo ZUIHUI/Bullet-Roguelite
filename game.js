@@ -96,26 +96,26 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "65";
+const ASSET_VERSION = "66";
 const COMBAT_TUNING = {
-  tailSway: 0.28,
-  tailLift: 0.36,
-  tailRotate: 0.3,
-  tailTrail: 0.24,
-  playerShotDamage: 0.5,
-  playerShotCooldown: 1.27,
-  absorbShotDamage: 0.68,
-  absorbShotCooldown: 1.2,
-  breathShotDamage: 0.42,
-  breathBeamDamage: 0.3,
-  ultimateDamage: 0.36,
-  ultimateTickDelay: 1.32,
-  enemyHp: 1.28,
-  enemySpeed: 1.1,
-  enemyBulletSpeed: 1.08,
-  enemyBulletDamage: 1.12,
-  enemyShootDelay: 0.84,
-  enemySpawnPace: 0.68,
+  tailSway: 0.17,
+  tailLift: 0.24,
+  tailRotate: 0.2,
+  tailTrail: 0.14,
+  playerShotDamage: 0.38,
+  playerShotCooldown: 1.38,
+  absorbShotDamage: 0.56,
+  absorbShotCooldown: 1.12,
+  breathShotDamage: 0.32,
+  breathBeamDamage: 0.22,
+  ultimateDamage: 0.25,
+  ultimateTickDelay: 1.5,
+  enemyHp: 1.5,
+  enemySpeed: 1.14,
+  enemyBulletSpeed: 1.12,
+  enemyBulletDamage: 1.18,
+  enemyShootDelay: 0.76,
+  enemySpawnPace: 0.58,
 };
 const DEFAULT_STAGE_BACKGROUND_ID = "dragon-ritual-arena";
 const STAGE_BACKGROUND_BY_ART = {
@@ -2382,8 +2382,8 @@ const state = {
     shotCooldown: 0.17 * COMBAT_TUNING.playerShotCooldown,
     shotTimer: 0,
     shotSpread: 1,
-    swallowLength: 108,
-    swallowWidth: 42,
+    swallowLength: 94,
+    swallowWidth: 34,
     storedBonus: 0,
     counterMult: 1,
     chainZap: 0,
@@ -2460,8 +2460,8 @@ function resetRun() {
     shotCooldown: ((state.currentForm.id === "swift" ? 0.145 : 0.17) / stats.speed) * COMBAT_TUNING.playerShotCooldown,
     shotTimer: 0,
     shotSpread: 1,
-    swallowLength: 108 * stats.swallow,
-    swallowWidth: 42 * stats.swallow,
+    swallowLength: 94 * stats.swallow,
+    swallowWidth: 34 * stats.swallow,
     storedBonus: 0,
     counterMult: stats.counter,
     splashBurn: 0,
@@ -2630,8 +2630,8 @@ function getMawZone() {
   const form = state.currentForm || selectedForm();
   const formReach = form.id === "devour" ? 1.1 : form.id === "swift" ? 0.96 : 1;
   const formWidth = form.id === "devour" ? 1.14 : form.id === "flare" ? 0.94 : 1;
-  const rangeBoost = input.absorbing ? 1.72 * formReach : 1;
-  const widthBoost = input.absorbing ? 2.12 * formWidth : 1;
+  const rangeBoost = input.absorbing ? 1.44 * formReach : 1;
+  const widthBoost = input.absorbing ? 1.62 * formWidth : 1;
   const length = state.upgrades.swallowLength * rangeBoost;
   const width = state.upgrades.swallowWidth * widthBoost;
   return {
@@ -2648,9 +2648,9 @@ function getMawHit(bullet) {
   if (ahead < -34 - bullet.r || ahead > maw.length + bullet.r * 2) return null;
 
   const progress = clamp(ahead / maw.length, 0, 1);
-  const halfWidth = maw.width * (0.86 + progress * 1.18);
+  const halfWidth = maw.width * (0.7 + progress * 0.9);
   const lateral = Math.abs(bullet.x - maw.x);
-  if (lateral > halfWidth + bullet.r * 1.9) return null;
+  if (lateral > halfWidth + bullet.r * 1.35) return null;
 
   const mouthDistance = Math.hypot(bullet.x - maw.x, bullet.y - maw.y);
   return {
@@ -4051,15 +4051,16 @@ function update(dt) {
     const stagePressure = stageIndex(state.currentStage);
     const packCount =
       1 +
-      (state.wave >= 2 && Math.random() < 0.22 ? 1 : 0) +
-      (state.wave >= 4 && Math.random() < 0.36 ? 1 : 0) +
-      (state.wave >= 7 && Math.random() < 0.32 ? 1 : 0) +
-      (stagePressure >= 5 && Math.random() < 0.28 ? 1 : 0) +
-      (stagePressure >= 10 && Math.random() < 0.22 ? 1 : 0);
+      (state.wave >= 2 && Math.random() < 0.34 ? 1 : 0) +
+      (state.wave >= 4 && Math.random() < 0.46 ? 1 : 0) +
+      (state.wave >= 6 && Math.random() < 0.42 ? 1 : 0) +
+      (stagePressure >= 4 && Math.random() < 0.36 ? 1 : 0) +
+      (stagePressure >= 9 && Math.random() < 0.32 ? 1 : 0) +
+      (stagePressure >= 14 && Math.random() < 0.24 ? 1 : 0);
     for (let i = 0; i < packCount; i += 1) {
       spawnEnemy();
     }
-    const pace = Math.max(0.32, (1.08 - state.wave * 0.055) * COMBAT_TUNING.enemySpawnPace);
+    const pace = Math.max(0.26, (1.08 - state.wave * 0.055) * COMBAT_TUNING.enemySpawnPace);
     state.spawnTimer = rand(pace * 0.58, pace * 0.98);
   }
 
@@ -4972,17 +4973,17 @@ function drawTailLayer(image, frame, drawX, drawY, spriteW, spriteH, time, motio
   const tailStart = 0.42;
   const segments = 12;
   const band = (1 - tailStart) / segments;
-  const swallowDrive = 1 + motion.absorbTension * 0.12 + motion.chargeRatio * 0.05;
+  const swallowDrive = 1 + motion.absorbTension * 0.08 + motion.chargeRatio * 0.03;
   for (let i = segments - 1; i >= 0; i -= 1) {
     const p = i / Math.max(1, segments - 1);
     const sourceY = tailStart + i * band;
     const tailWeight = smoothstep(0.05, 1, p);
     const sway = (
-      Math.sin(time * 6.2 + p * TAU * 1.08) * (1.5 + tailWeight * 14) * swallowDrive +
-      Math.sin(time * 3.6 + p * 6.4) * tailWeight * 3 +
-      motion.flightTilt * (3 + tailWeight * 13)
+      Math.sin(time * 5.4 + p * TAU * 0.96) * (1.2 + tailWeight * 10) * swallowDrive +
+      Math.sin(time * 3.1 + p * 6.4) * tailWeight * 2.1 +
+      motion.flightTilt * (2.2 + tailWeight * 8.5)
     ) * COMBAT_TUNING.tailSway;
-    const lift = Math.cos(time * 5.8 + p * TAU * 1.2) * tailWeight * (1.2 + motion.absorbTension * 1.0) * COMBAT_TUNING.tailLift;
+    const lift = Math.cos(time * 4.9 + p * TAU * 1.08) * tailWeight * (0.9 + motion.absorbTension * 0.55) * COMBAT_TUNING.tailLift;
     drawSpriteRegion(
       image,
       { x: 0, y: sourceY, w: 1, h: band + 0.006 },
@@ -4996,8 +4997,8 @@ function drawTailLayer(image, frame, drawX, drawY, spriteW, spriteH, time, motio
         frame,
         x: sway,
         y: lift,
-        rotate: Math.sin(time * 5.8 + p * TAU * 1.15) * tailWeight * (0.045 + motion.absorbTension * 0.018) * COMBAT_TUNING.tailRotate,
-        scaleX: 1 + Math.sin(time * 5.2 + p * TAU) * tailWeight * 0.028,
+        rotate: Math.sin(time * 5 + p * TAU * 1.05) * tailWeight * (0.034 + motion.absorbTension * 0.012) * COMBAT_TUNING.tailRotate,
+        scaleX: 1 + Math.sin(time * 4.4 + p * TAU) * tailWeight * 0.018,
       },
     );
   }
