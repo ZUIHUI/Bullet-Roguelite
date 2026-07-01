@@ -98,7 +98,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "74";
+const ASSET_VERSION = "75";
 const COMBAT_TUNING = {
   tailSway: 0.17,
   tailLift: 0.24,
@@ -1114,6 +1114,26 @@ function activeSkillResonances() {
 function hasSkillResonance(id) {
   const resonance = SKILL_RESONANCE_BY_ID.get(id);
   return Boolean(resonance && resonance.requires.every((skillId) => skillLevel(skillId) > 0));
+}
+
+function resonanceCompletedBySkill(skill) {
+  const current = state.runSkills[skill.id] || 0;
+  const nextSkills = { ...state.runSkills, [skill.id]: current + 1 };
+  return SKILL_RESONANCES.find((resonance) => {
+    if (!resonance.requires.includes(skill.id)) return false;
+    const activeNow = resonance.requires.every((id) => (state.runSkills[id] || 0) > 0);
+    const activeNext = resonance.requires.every((id) => (nextSkills[id] || 0) > 0);
+    return !activeNow && activeNext;
+  });
+}
+
+function resonanceAdvancedBySkill(skill) {
+  return SKILL_RESONANCES.find((resonance) => {
+    if (!resonance.requires.includes(skill.id)) return false;
+    if (resonanceCompletedBySkill(skill)) return false;
+    const missingAfterPick = resonance.requires.filter((id) => id !== skill.id && (state.runSkills[id] || 0) <= 0);
+    return missingAfterPick.length === 1;
+  });
 }
 
 function skillLoadoutLimit(meta = state.meta) {
@@ -6314,6 +6334,26 @@ function applyLoadoutSeedSkills() {
   }
 }
 
+function skillChoiceMeta(skill, loadoutSet) {
+  const currentLevel = state.runSkills[skill.id] || 0;
+  const nextLevel = currentLevel + 1;
+  const completedResonance = resonanceCompletedBySkill(skill);
+  const advancedResonance = resonanceAdvancedBySkill(skill);
+  const inLoadout = loadoutSet.has(skill.id);
+  const rarity = completedResonance ? "mythic" : inLoadout ? "epic" : advancedResonance ? "rare" : "common";
+  const label = completedResonance ? "共鳴" : inLoadout ? "戰術" : advancedResonance ? "連攜" : "技能";
+  const hint = completedResonance
+    ? `選取後啟動 ${completedResonance.title}`
+    : advancedResonance
+      ? `再補 1 張可接近 ${advancedResonance.title}`
+      : inLoadout
+        ? "出戰配置加權，適合穩定養成路線"
+        : nextLevel >= skill.max
+          ? "本次升級後接近技能上限"
+          : "補強本局輸出或生存節奏";
+  return { currentLevel, nextLevel, completedResonance, advancedResonance, inLoadout, rarity, label, hint };
+}
+
 function openUpgrade() {
   state.mode = "upgrade";
   input.absorbing = false;
@@ -6333,14 +6373,21 @@ function openUpgrade() {
   }
 
   for (const skill of choices) {
-    const nextLevel = (state.runSkills[skill.id] || 0) + 1;
+    const meta = skillChoiceMeta(skill, loadoutSet);
+    const levelRatio = clamp(meta.nextLevel / skill.max, 0, 1);
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "upgrade-choice";
+    button.className = `upgrade-choice upgrade-${meta.rarity}${meta.inLoadout ? " is-loadout" : ""}${meta.completedResonance ? " is-resonance" : ""}`;
     button.innerHTML = `
       <span class="icon">${skill.icon}</span>
-      <span>
-        <strong>${skill.title} Lv.${nextLevel}/${skill.max}</strong>
+      <span class="upgrade-copy">
+        <span class="upgrade-badges">
+          <b>${meta.label}</b>
+          <b>Lv.${meta.nextLevel}/${skill.max}</b>
+        </span>
+        <strong>${skill.title}</strong>
+        <em>${meta.hint}</em>
+        <i class="upgrade-meter" style="--fill:${Math.round(levelRatio * 100)}%"></i>
         <span>${skill.element} · ${skill.detail}</span>
       </span>
     `;

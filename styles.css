@@ -1932,6 +1932,38 @@ h2 {
   text-align: left;
 }
 
+.upgrade-choice.upgrade-rare,
+.upgrade-choice.upgrade-epic,
+.upgrade-choice.upgrade-mythic {
+  position: relative;
+  overflow: hidden;
+}
+
+.upgrade-choice.upgrade-rare {
+  box-shadow: inset 0 0 0 1px rgba(66, 239, 210, 0.28);
+}
+
+.upgrade-choice.upgrade-epic {
+  box-shadow: inset 0 0 0 1px rgba(255, 209, 102, 0.34);
+}
+
+.upgrade-choice.upgrade-mythic {
+  box-shadow:
+    inset 0 0 0 1px rgba(192, 132, 252, 0.48),
+    0 0 24px rgba(192, 132, 252, 0.16);
+}
+
+.upgrade-choice.is-resonance::after,
+.upgrade-choice.is-loadout::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 86% 16%, rgba(255, 209, 102, 0.18), transparent 38%),
+    linear-gradient(135deg, rgba(66, 239, 210, 0.08), transparent 58%);
+  pointer-events: none;
+}
+
 .upgrade-choice .icon {
   display: grid;
   width: 34px;
@@ -1943,19 +1975,73 @@ h2 {
   font-size: 1.2rem;
 }
 
+.upgrade-copy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.upgrade-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.upgrade-badges b {
+  padding: 3px 6px;
+  border-radius: 999px;
+  color: #06100f;
+  background: linear-gradient(135deg, var(--aqua), var(--gold));
+  font-size: 0.58rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
 .upgrade-choice strong {
   display: block;
-  margin-bottom: 2px;
+  margin: 0;
   font-size: 1rem;
   line-height: 1.1;
 }
 
-.upgrade-choice span:last-child {
+.upgrade-choice em {
+  display: -webkit-box;
+  overflow: hidden;
+  color: rgba(5, 16, 15, 0.72);
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 850;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.upgrade-copy > span:last-child {
   display: block;
   color: rgba(5, 16, 15, 0.7);
   font-size: 0.78rem;
   font-weight: 750;
   line-height: 1.25;
+}
+
+.upgrade-meter {
+  position: relative;
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(5, 16, 15, 0.12);
+}
+
+.upgrade-meter::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--fill, 0%);
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--aqua), var(--gold), #c084fc);
 }
 
 .end-score {
