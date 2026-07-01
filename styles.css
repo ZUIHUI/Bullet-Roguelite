@@ -307,27 +307,58 @@ button {
   text-align: center;
 }
 
-.title-mark {
-  width: 116px;
-  height: 116px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 26%;
-  object-fit: cover;
-  background: #05070d;
+.title-sigil {
+  position: relative;
+  display: grid;
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
+  place-items: center;
+  border: 1px solid rgba(255, 209, 102, 0.38);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 244, 197, 0.22), transparent 24%),
+    radial-gradient(circle at 50% 56%, rgba(66, 239, 210, 0.26), transparent 48%),
+    conic-gradient(from 18deg, rgba(166, 120, 255, 0.2), rgba(255, 209, 102, 0.34), rgba(66, 239, 210, 0.22), rgba(255, 107, 107, 0.18), rgba(166, 120, 255, 0.2)),
+    #05070d;
   box-shadow:
     0 14px 30px rgba(0, 0, 0, 0.34),
     0 0 0 5px rgba(66, 239, 210, 0.1),
     0 0 38px rgba(166, 120, 255, 0.28);
-  filter: drop-shadow(0 18px 30px rgba(66, 239, 210, 0.22));
-  animation: titleMarkGlow 3.6s ease-in-out infinite;
+  animation: titleSigilGlow 3.6s ease-in-out infinite;
 }
 
-.title-mark.small {
-  width: 72px;
-  height: 72px;
+.title-sigil::before,
+.title-sigil::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
 }
 
-@keyframes titleMarkGlow {
+.title-sigil::before {
+  inset: 8px;
+  border: 1px dashed rgba(255, 244, 197, 0.46);
+  animation: titleSigilSpin 9s linear infinite;
+}
+
+.title-sigil::after {
+  content: "龍";
+  inset: 16px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(66, 239, 210, 0.44);
+  color: #fff4c5;
+  background: radial-gradient(circle, rgba(9, 16, 25, 0.92), rgba(5, 7, 13, 0.62));
+  font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  font-size: 1.45rem;
+  font-weight: 950;
+  text-shadow:
+    0 0 14px rgba(255, 209, 102, 0.68),
+    0 0 22px rgba(66, 239, 210, 0.38);
+}
+
+@keyframes titleSigilGlow {
   0%, 100% {
     box-shadow:
       0 14px 30px rgba(0, 0, 0, 0.34),
@@ -340,6 +371,12 @@ button {
       0 16px 34px rgba(0, 0, 0, 0.38),
       0 0 0 6px rgba(255, 209, 102, 0.1),
       0 0 46px rgba(66, 239, 210, 0.32);
+  }
+}
+
+@keyframes titleSigilSpin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
@@ -1392,9 +1429,9 @@ h2 {
     min-height: 100svh;
   }
 
-  .title-mark {
-    width: 88px;
-    height: 88px;
+  .title-sigil {
+    width: 62px;
+    height: 62px;
   }
 
   .hero-panel,
