@@ -29,6 +29,9 @@ const ui = {
   finalScore: document.querySelector("#finalScore"),
   endLabel: document.querySelector("#endLabel"),
   endTitle: document.querySelector("#endTitle"),
+  endSummary: document.querySelector("#endSummaryText"),
+  endRewardGrid: document.querySelector("#endRewardGrid"),
+  endNext: document.querySelector("#endNextText"),
   bossHud: document.querySelector("#bossHud"),
   bossName: document.querySelector("#bossNameText"),
   bossHpFill: document.querySelector("#bossHpFill"),
@@ -88,7 +91,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "58";
+const ASSET_VERSION = "59";
 const COMBAT_TUNING = {
   tailSway: 0.28,
   tailLift: 0.36,
@@ -3346,11 +3349,35 @@ function damagePlayer(amount) {
   }
 }
 
+function renderEndDetails({ summary = "", rewards = [], next = "" } = {}) {
+  if (ui.endSummary) {
+    ui.endSummary.textContent = summary;
+  }
+  if (ui.endRewardGrid) {
+    ui.endRewardGrid.replaceChildren();
+    rewards.forEach(({ label, value }) => {
+      const item = document.createElement("span");
+      const labelEl = document.createElement("em");
+      const valueEl = document.createElement("strong");
+      labelEl.textContent = label;
+      valueEl.textContent = value;
+      item.append(labelEl, valueEl);
+      ui.endRewardGrid.append(item);
+    });
+    ui.endRewardGrid.hidden = rewards.length === 0;
+  }
+  if (ui.endNext) {
+    ui.endNext.textContent = next;
+  }
+}
+
 function completeStage() {
   const stage = state.currentStage;
   const index = stageIndex(stage);
   const nextStage = STAGES[Math.min(index + 1, STAGES.length - 1)];
   const bonus = Math.floor(state.score / 100);
+  const totalGold = stage.gold + bonus;
+  const hasNextStage = index < STAGES.length - 1;
   state.meta.gold += stage.gold + bonus;
   state.meta.scales += stage.scales;
   state.meta.highestStageIndex = Math.max(state.meta.highestStageIndex, Math.min(index + 1, STAGES.length - 1));
@@ -3364,9 +3391,21 @@ function completeStage() {
   input.absorbing = false;
   hideWaveBanner();
   updateBossHud();
-  ui.endLabel.textContent = `${stage.stageNo} CLEAR`;
+  ui.endLabel.textContent = `${stage.id} CLEAR`;
   ui.endTitle.textContent = `${stage.chapterTitle}突破`;
-  ui.finalScore.textContent = `${stage.storyClear} +${stage.gold + bonus}金 / +${stage.scales}晶 · 下一關 ${nextStage.stageNo}`;
+  ui.finalScore.textContent = `分數 ${Math.floor(state.score).toLocaleString("zh-TW")}`;
+  renderEndDetails({
+    summary: stage.storyClear,
+    rewards: [
+      { label: "金幣", value: `+${totalGold}` },
+      { label: "龍晶", value: `+${stage.scales}` },
+      { label: "擊破", value: `${state.stageKills}` },
+      { label: hasNextStage ? "下一關" : "主線", value: hasNextStage ? nextStage.id : "暫告一段" },
+    ],
+    next: hasNextStage
+      ? `下一關已選定：${nextStage.name}。回主畫面強化龍、裝備、技能後再出戰。`
+      : "目前主線已完成，回主畫面強化龍族與神器。",
+  });
   ui.restartButton.textContent = "回主畫面強化";
   ui.endOverlay.classList.add("active");
 }
@@ -3391,6 +3430,7 @@ function showHome() {
   hideSummonResult();
   closeStageBriefing();
   ui.startOverlay.classList.add("active");
+  renderEndDetails();
   hideWaveBanner();
   updateBossHud();
   renderSkillHud();
@@ -5276,9 +5316,19 @@ function endRun() {
   state.meta.gold += partialGold;
   state.meta.scales += partialScales;
   saveMeta();
-  ui.endLabel.textContent = state.wave >= 6 ? "deep flight" : "run complete";
+  ui.endLabel.textContent = state.wave >= 6 ? "deep flight" : "run failed";
   ui.endTitle.textContent = state.wave >= 6 ? "龍焰仍亮著" : "再飛一次";
-  ui.finalScore.textContent = partialGold || partialScales ? `+${partialGold}金 / +${partialScales}晶` : Math.floor(state.score).toLocaleString("zh-TW");
+  ui.finalScore.textContent = `分數 ${Math.floor(state.score).toLocaleString("zh-TW")}`;
+  renderEndDetails({
+    summary: "冒險中斷，已帶回部分資源。調整龍、裝備或技能搭配後再挑戰。",
+    rewards: [
+      { label: "金幣", value: `+${partialGold}` },
+      { label: "龍晶", value: `+${partialScales}` },
+      { label: "擊破", value: `${state.stageKills}` },
+      { label: "到達", value: `Wave ${state.wave}` },
+    ],
+    next: `${state.currentStage?.name || "目前關卡"} 仍可再次挑戰。`,
+  });
   ui.restartButton.textContent = "回主畫面";
   ui.endOverlay.classList.add("active");
 }
@@ -5290,7 +5340,12 @@ function togglePause() {
     input.absorbPointerId = null;
     ui.endLabel.textContent = "paused";
     ui.endTitle.textContent = "暫停";
-    ui.finalScore.textContent = Math.floor(state.score).toLocaleString("zh-TW");
+    ui.finalScore.textContent = `分數 ${Math.floor(state.score).toLocaleString("zh-TW")}`;
+    renderEndDetails({
+      summary: "暫停中，可繼續或回主畫面。",
+      rewards: [],
+      next: "",
+    });
     ui.restartButton.textContent = "繼續";
     ui.endOverlay.classList.add("active");
   } else if (state.mode === "paused") {

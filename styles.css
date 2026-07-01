@@ -324,6 +324,12 @@ button {
   text-align: center;
 }
 
+.end-panel {
+  width: min(100%, 410px);
+  max-height: min(86vh, 680px);
+  overflow: auto;
+}
+
 .summon-panel {
   display: grid;
   justify-items: center;
@@ -1728,6 +1734,55 @@ h2 {
   font-size: 2.4rem;
   font-weight: 900;
   line-height: 1;
+}
+
+.end-summary {
+  margin: -2px 0 0;
+  color: rgba(241, 246, 255, 0.82);
+  font-size: 0.92rem;
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+.end-reward-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.end-reward-grid span {
+  display: grid;
+  gap: 2px;
+  min-height: 58px;
+  padding: 9px 10px;
+  border: 1px solid rgba(244, 197, 112, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.065);
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.025);
+}
+
+.end-reward-grid em {
+  color: rgba(241, 246, 255, 0.64);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.end-reward-grid strong {
+  color: #fff2bd;
+  font-size: 1rem;
+  font-weight: 950;
+  line-height: 1.15;
+}
+
+.end-next-text {
+  margin: -2px 0 0;
+  color: rgba(135, 230, 255, 0.86);
+  font-size: 0.82rem;
+  font-weight: 750;
+  line-height: 1.45;
 }
 
 @media (max-height: 620px) {
