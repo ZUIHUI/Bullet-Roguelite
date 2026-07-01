@@ -96,7 +96,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "68";
+const ASSET_VERSION = "69";
 const COMBAT_TUNING = {
   tailSway: 0.17,
   tailLift: 0.24,
@@ -2382,6 +2382,17 @@ const input = {
 };
 const KEYBOARD_ABSORB_ID = "keyboard";
 
+function createRunStats() {
+  return {
+    swallowedBullets: 0,
+    breathReleases: 0,
+    ultimatesUsed: 0,
+    hitsTaken: 0,
+    damageTaken: 0,
+    resonanceTriggers: 0,
+  };
+}
+
 const state = {
   w: 0,
   h: 0,
@@ -2424,6 +2435,7 @@ const state = {
   ultimateCooldown: 0,
   ultimateActive: null,
   runSkills: {},
+  runStats: createRunStats(),
   meta: null,
   upgrades: {
     shotDamage: 13 * COMBAT_TUNING.playerShotDamage,
@@ -2491,6 +2503,7 @@ function resetRun() {
   state.ultimateCooldown = 0;
   state.ultimateActive = null;
   state.runSkills = {};
+  state.runStats = createRunStats();
   state.spawnTimer = 0.28;
   state.shake = 0;
   state.flash = 0;
@@ -2747,6 +2760,7 @@ function storeBullet(bullet) {
   const absorbBonus = form.id === "devour" ? 1.28 : form.id === "swift" ? 0.95 : 1;
   player.charge = clamp(player.charge + bullet.power * 1.58 * absorbBonus, 0, player.maxCharge);
   addUltimateCharge(bullet.power * 1.05 * absorbBonus);
+  state.runStats.swallowedBullets += 1;
   state.score += 24;
   addParticles(bullet.x, bullet.y, 12, bullet.color, 230);
   addSwallowBurst(player.x, player.y - 48, bullet.color);
@@ -3368,6 +3382,10 @@ function releaseBreath() {
   const count = Math.min(payload.length, 12 + state.upgrades.storedBonus);
   const counterShape = dragonProjectileShape(state.currentDragon?.id);
   const matrixActive = hasSkillResonance("counterMatrix");
+  state.runStats.breathReleases += 1;
+  if (matrixActive) {
+    state.runStats.resonanceTriggers += 1;
+  }
 
   for (let i = 0; i < count; i += 1) {
     const item = payload[i];
@@ -3437,6 +3455,7 @@ function tryActivateUltimate() {
     tick: 0,
     phase: rand(0, TAU),
   };
+  state.runStats.ultimatesUsed += 1;
   state.flash = 0.18;
   state.shake = Math.max(state.shake, 10);
   player.releasePulse = 1;
@@ -3692,6 +3711,7 @@ function defeatEnemy(enemy) {
     addUltimateCharge(resonancePower * (0.36 + resonanceLevel * 0.05));
     addSwallowBurst(enemy.x, enemy.y, "#ff9ecf");
     addParticles(enemy.x, enemy.y, 5 + resonanceLevel, "#ff9ecf", 120);
+    state.runStats.resonanceTriggers += 1;
   }
   addParticles(enemy.x, enemy.y, enemy.type === "brute" ? 30 : 18, enemy.color, 190);
   if (state.currentDragon?.id === "jade") {
@@ -3733,8 +3753,11 @@ function damagePlayer(amount) {
     }
     absorbOrShatterBullets(player.x, player.y, 42 + frostPower * 4, false, "#d8f7ff");
     addParticles(player.x, player.y - 12, 8 + frostPower, "#d8f7ff", 135);
+    state.runStats.resonanceTriggers += 1;
   }
   player.hp -= amount;
+  state.runStats.hitsTaken += 1;
+  state.runStats.damageTaken += amount;
   player.invulnerable = 1.05 + guardLevel * 0.08 + equipGuard * 0.03;
   state.shake = Math.max(state.shake, 9);
   addParticles(player.x, player.y, 18, "#ff6b6b", 170);
@@ -3765,6 +3788,20 @@ function renderEndDetails({ summary = "", rewards = [], next = "" } = {}) {
   }
 }
 
+function runStatRewards(baseRewards = []) {
+  const stats = state.runStats || createRunStats();
+  const damageTaken = Math.round(stats.damageTaken * 10) / 10;
+  return [
+    ...baseRewards,
+    { label: "吞彈", value: `${stats.swallowedBullets}` },
+    { label: "反吐", value: `${stats.breathReleases}` },
+    { label: "受擊", value: `${stats.hitsTaken}` },
+    { label: "受傷", value: `${damageTaken}` },
+    { label: "大絕", value: `${stats.ultimatesUsed}` },
+    { label: "共鳴", value: `${stats.resonanceTriggers}` },
+  ];
+}
+
 function completeStage() {
   const stage = state.currentStage;
   const index = stageIndex(stage);
@@ -3790,12 +3827,12 @@ function completeStage() {
   ui.finalScore.textContent = `分數 ${Math.floor(state.score).toLocaleString("zh-TW")}`;
   renderEndDetails({
     summary: stage.storyClear,
-    rewards: [
+    rewards: runStatRewards([
       { label: "金幣", value: `+${totalGold}` },
       { label: "龍晶", value: `+${stage.scales}` },
       { label: "擊破", value: `${state.stageKills}` },
       { label: hasNextStage ? "下一關" : "主線", value: hasNextStage ? nextStage.id : "暫告一段" },
-    ],
+    ]),
     next: hasNextStage
       ? `下一關已選定：${nextStage.name}。回主畫面強化龍、裝備、技能後再出戰。`
       : "目前主線已完成，回主畫面強化龍族與神器。",
@@ -3819,6 +3856,7 @@ function showHome() {
   state.currentBoss = null;
   state.currentForm = null;
   state.runSkills = {};
+  state.runStats = createRunStats();
   ui.endOverlay.classList.remove("active");
   ui.upgradeOverlay.classList.remove("active");
   hideSummonResult();
@@ -4004,6 +4042,7 @@ function updateShots(dt) {
           }
           if (stormHits) {
             addParticles(enemy.x, enemy.y, 8, "#ffb84d", 150);
+            state.runStats.resonanceTriggers += 1;
           }
         }
         applyShotImpact(shot, enemy);
@@ -5984,12 +6023,12 @@ function endRun() {
   ui.finalScore.textContent = `分數 ${Math.floor(state.score).toLocaleString("zh-TW")}`;
   renderEndDetails({
     summary: "冒險中斷，已帶回部分資源。調整龍、裝備或技能搭配後再挑戰。",
-    rewards: [
+    rewards: runStatRewards([
       { label: "金幣", value: `+${partialGold}` },
       { label: "龍晶", value: `+${partialScales}` },
       { label: "擊破", value: `${state.stageKills}` },
       { label: "到達", value: `Wave ${state.wave}` },
-    ],
+    ]),
     next: `${state.currentStage?.name || "目前關卡"} 仍可再次挑戰。`,
   });
   ui.restartButton.textContent = "回主畫面";
