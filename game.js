@@ -99,7 +99,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "77";
+const ASSET_VERSION = "78";
 const COMBAT_TUNING = {
   tailSway: 0.17,
   tailLift: 0.24,
@@ -122,12 +122,78 @@ const COMBAT_TUNING = {
   breathBeamDamage: 0.22,
   ultimateDamage: 0.25,
   ultimateTickDelay: 1.5,
-  enemyHp: 1.5,
-  enemySpeed: 1.14,
-  enemyBulletSpeed: 1.12,
-  enemyBulletDamage: 1.18,
-  enemyShootDelay: 0.76,
-  enemySpawnPace: 0.58,
+  enemyHp: 1,
+  enemySpeed: 1,
+  enemyBulletSpeed: 1,
+  enemyBulletDamage: 1,
+  enemyShootDelay: 1,
+  enemySpawnPace: 1,
+};
+const BALANCE_CURVE = {
+  onboarding: {
+    range: [0, 2],
+    hp: [0.62, 0.78],
+    speed: [0.72, 0.84],
+    bulletSpeed: [0.68, 0.82],
+    bulletDamage: [0.72, 0.84],
+    shootDelay: [1.55, 1.34],
+    spawnPace: [2.75, 2.05],
+    bulletBase: [98, 118],
+    waveGrowth: 0.08,
+    eliteStartWave: 4,
+    eliteEveryWaves: 3,
+    eliteCap: 2,
+    packTwoChance: [0, 0.2],
+    packThreeChance: [0, 0],
+  },
+  learning: {
+    range: [3, 6],
+    hp: [0.84, 1.02],
+    speed: [0.88, 1],
+    bulletSpeed: [0.84, 0.96],
+    bulletDamage: [0.86, 1.02],
+    shootDelay: [1.28, 1.1],
+    spawnPace: [1.9, 1.42],
+    bulletBase: [120, 138],
+    waveGrowth: 0.12,
+    eliteStartWave: 3,
+    eliteEveryWaves: 2,
+    eliteCap: 3,
+    packTwoChance: [0.18, 0.42],
+    packThreeChance: [0, 0.12],
+  },
+  chapterBoss: {
+    range: [7, 9],
+    hp: [1.04, 1.18],
+    speed: [1, 1.08],
+    bulletSpeed: [0.98, 1.1],
+    bulletDamage: [1.02, 1.16],
+    shootDelay: [1.06, 0.94],
+    spawnPace: [1.34, 1.08],
+    bulletBase: [138, 154],
+    waveGrowth: 0.15,
+    eliteStartWave: 2,
+    eliteEveryWaves: 2,
+    eliteCap: 4,
+    packTwoChance: [0.38, 0.58],
+    packThreeChance: [0.08, 0.22],
+  },
+  advanced: {
+    range: [10, 19],
+    hp: [1.18, 1.55],
+    speed: [1.08, 1.22],
+    bulletSpeed: [1.08, 1.3],
+    bulletDamage: [1.18, 1.48],
+    shootDelay: [0.96, 0.78],
+    spawnPace: [1.12, 0.78],
+    bulletBase: [150, 176],
+    waveGrowth: 0.18,
+    eliteStartWave: 2,
+    eliteEveryWaves: 2,
+    eliteCap: 5,
+    packTwoChance: [0.55, 0.74],
+    packThreeChance: [0.18, 0.42],
+  },
 };
 const DEFAULT_STAGE_BACKGROUND_ID = "dragon-ritual-arena";
 const STAGE_BACKGROUND_BY_ART = {
@@ -276,7 +342,7 @@ const DRAGONS = [
     cardArt: "dragon-ember",
     palette: ["#d92f32", "#ff9140", "#ffca35", "#6ca944", "#32120f", "#7d3327"],
     passive: "反吐火球傷害高，但吞噬槽較窄。",
-    stats: { hp: 5, attack: 1.28, speed: 0.98, swallow: 0.9, counter: 1.25 },
+    stats: { hp: 5.2, attack: 1.14, speed: 0.98, swallow: 0.92, counter: 1.12 },
     ultimateName: "辣焰飛椒",
     ultimateDesc: "向前落下高傷害火隕。",
   },
@@ -293,7 +359,7 @@ const DRAGONS = [
     cardArt: "dragon-tide",
     palette: ["#5b9fe6", "#b8f2f7", "#33c0df", "#f48aa6", "#ece7de", "#7567b2"],
     passive: "吞噬槽更寬，反吐會附帶緩速。",
-    stats: { hp: 7, attack: 0.9, speed: 0.95, swallow: 1.26, counter: 0.92 },
+    stats: { hp: 7, attack: 0.9, speed: 0.96, swallow: 1.18, counter: 0.94 },
     ultimateName: "泡海漩渦",
     ultimateDesc: "產生漩渦吸住敵彈並反射。",
   },
@@ -310,7 +376,7 @@ const DRAGONS = [
     cardArt: "dragon-jade",
     palette: ["#4f8d39", "#dce86a", "#9ac34d", "#ffe45e", "#f08c96", "#8b5d3c"],
     passive: "每次升級回復生命，生命上限較高。",
-    stats: { hp: 8, attack: 0.86, speed: 0.9, swallow: 1.04, counter: 0.92 },
+    stats: { hp: 7.4, attack: 0.9, speed: 0.92, swallow: 1.03, counter: 0.94 },
     ultimateName: "森語再生",
     ultimateDesc: "回血並釋放穿透藤息。",
   },
@@ -327,7 +393,7 @@ const DRAGONS = [
     cardArt: "dragon-volt",
     palette: ["#ffd400", "#2388ff", "#171b55", "#47d3ec", "#f3f4f6"],
     passive: "移動快、連射快，容錯較低。",
-    stats: { hp: 5, attack: 1.06, speed: 1.24, swallow: 0.96, counter: 1.08 },
+    stats: { hp: 5.4, attack: 1.04, speed: 1.16, swallow: 0.96, counter: 1.04 },
     ultimateName: "霆電連鎖",
     ultimateDesc: "連鎖電擊場上多個目標。",
   },
@@ -361,7 +427,7 @@ const DRAGONS = [
     cardArt: "dragon-shadow",
     palette: ["#3f1b82", "#734ad9", "#5a45a2", "#09091e", "#b9bbca"],
     passive: "吞彈得分高，生命低。",
-    stats: { hp: 4, attack: 1.18, speed: 1.1, swallow: 1.08, counter: 1.18 },
+    stats: { hp: 5, attack: 1.1, speed: 1.08, swallow: 1.04, counter: 1.1 },
     ultimateName: "月影逆鳴",
     ultimateDesc: "把近身彈幕反轉成暗刃。",
   },
@@ -378,7 +444,7 @@ const DRAGONS = [
     cardArt: "dragon-metal",
     palette: ["#3a322b", "#6e6e6e", "#35c8d8", "#2fb8c4", "#d8a647", "#d8d1c0"],
     passive: "生命厚，吞噬時受傷減少。",
-    stats: { hp: 10, attack: 0.82, speed: 0.78, swallow: 1.02, counter: 0.88 },
+    stats: { hp: 8.2, attack: 0.84, speed: 0.84, swallow: 1, counter: 0.9 },
     ultimateName: "齒輪震波",
     ultimateDesc: "震碎周圍彈幕並擊退敵人。",
   },
@@ -395,7 +461,7 @@ const DRAGONS = [
     cardArt: "dragon-bloom",
     palette: ["#f35f8e", "#f7b8cc", "#9bd189", "#c8e1df", "#ead8d0", "#8f76b6"],
     passive: "反吐會留下櫻風治癒花火區。",
-    stats: { hp: 6, attack: 1.02, speed: 1, swallow: 1.08, counter: 1.08 },
+    stats: { hp: 6.2, attack: 1, speed: 1, swallow: 1.06, counter: 1.04 },
     ultimateName: "櫻風花燈",
     ultimateDesc: "召喚花火燈雨覆蓋全場。",
   },
@@ -412,7 +478,7 @@ const DRAGONS = [
     cardArt: "dragon-astral",
     palette: ["#7b3a1d", "#f0ad52", "#e4b84e", "#66d1c7", "#155f68", "#3b2d25"],
     passive: "滿槽反吐會追加砂塵裂隙傷害。",
-    stats: { hp: 6, attack: 1.16, speed: 1.04, swallow: 1.18, counter: 1.22 },
+    stats: { hp: 6.2, attack: 1.08, speed: 1.02, swallow: 1.1, counter: 1.12 },
     ultimateName: "古砂秘寶",
     ultimateDesc: "開啟砂塵裂隙吸彈並向 Boss 反射。",
   },
@@ -460,7 +526,7 @@ const STAGES = [
     theme: "#42efd2",
     trait: "基礎彈幕",
     bg: ["#05070d", "#091019", "#130c14"],
-    mods: { enemyHp: 1, enemySpeed: 1, bulletSpeed: 1, hazardDelay: 1 },
+    mods: { enemyHp: 0.96, enemySpeed: 0.95, bulletSpeed: 0.94, hazardDelay: 1.16 },
   },
   {
     id: "1-2",
@@ -481,7 +547,7 @@ const STAGES = [
     theme: "#7aa7ff",
     trait: "寬幅泡彈",
     bg: ["#04111e", "#062a35", "#0d1028"],
-    mods: { enemyHp: 1.06, enemySpeed: 0.96, bulletSpeed: 0.92, bulletSize: 1.14, hazardDelay: 1.08 },
+    mods: { enemyHp: 1.02, enemySpeed: 0.97, bulletSpeed: 0.96, bulletSize: 1.08, hazardDelay: 1.12 },
   },
   {
     id: "1-3",
@@ -502,7 +568,7 @@ const STAGES = [
     theme: "#ff6b6b",
     trait: "高壓快彈",
     bg: ["#14080b", "#251012", "#2d1410"],
-    mods: { enemyHp: 1.12, enemySpeed: 1.05, bulletSpeed: 1.1, hazardDelay: 0.98 },
+    mods: { enemyHp: 1.04, enemySpeed: 1.02, bulletSpeed: 1.04, hazardDelay: 1.06 },
   },
   {
     id: "1-4",
@@ -523,7 +589,7 @@ const STAGES = [
     theme: "#ffd166",
     trait: "雷射密集",
     bg: ["#07101b", "#142034", "#1a1432"],
-    mods: { enemyHp: 1.18, enemySpeed: 1.04, bulletSpeed: 1.08, hazardDelay: 0.9, laserRate: 0.82 },
+    mods: { enemyHp: 1.05, enemySpeed: 1.02, bulletSpeed: 1.03, hazardDelay: 1, laserRate: 0.94 },
   },
   {
     id: "1-5",
@@ -544,7 +610,7 @@ const STAGES = [
     theme: "#9b7cff",
     trait: "裂隙亂流",
     bg: ["#090718", "#161132", "#250f30"],
-    mods: { enemyHp: 1.25, enemySpeed: 1.08, bulletSpeed: 1.14, hazardDelay: 0.86, bulletDrift: 1 },
+    mods: { enemyHp: 1.06, enemySpeed: 1.04, bulletSpeed: 1.04, hazardDelay: 0.98, bulletDrift: 1 },
   },
   {
     id: "1-6",
@@ -565,7 +631,7 @@ const STAGES = [
     theme: "#77f5a6",
     trait: "耐久小怪",
     bg: ["#06120e", "#0d2418", "#111925"],
-    mods: { enemyHp: 1.34, enemySpeed: 1.02, bulletSpeed: 1.12, hazardDelay: 0.9 },
+    mods: { enemyHp: 1.08, enemySpeed: 1, bulletSpeed: 1.03, hazardDelay: 1.02 },
   },
   {
     id: "1-7",
@@ -586,7 +652,7 @@ const STAGES = [
     theme: "#ff8ab3",
     trait: "密集散射",
     bg: ["#150914", "#251225", "#15182a"],
-    mods: { enemyHp: 1.42, enemySpeed: 1.08, bulletSpeed: 1.16, bulletSize: 0.94, hazardDelay: 0.82 },
+    mods: { enemyHp: 1.06, enemySpeed: 1.05, bulletSpeed: 1.05, bulletSize: 0.98, hazardDelay: 0.96 },
   },
   {
     id: "1-8",
@@ -607,7 +673,7 @@ const STAGES = [
     theme: "#35c8d8",
     trait: "節奏加速",
     bg: ["#071014", "#10252b", "#11151d"],
-    mods: { enemyHp: 1.5, enemySpeed: 1.12, bulletSpeed: 1.2, hazardDelay: 0.76 },
+    mods: { enemyHp: 1.08, enemySpeed: 1.06, bulletSpeed: 1.06, hazardDelay: 0.94 },
   },
   {
     id: "1-9",
@@ -628,7 +694,7 @@ const STAGES = [
     theme: "#a678ff",
     trait: "雷射範圍混合",
     bg: ["#09091b", "#17113a", "#21122d"],
-    mods: { enemyHp: 1.62, enemySpeed: 1.14, bulletSpeed: 1.24, hazardDelay: 0.7, laserRate: 0.72 },
+    mods: { enemyHp: 1.08, enemySpeed: 1.06, bulletSpeed: 1.07, hazardDelay: 0.92, laserRate: 0.9 },
   },
   {
     id: "1-10",
@@ -650,7 +716,7 @@ const STAGES = [
     theme: "#f2d27a",
     trait: "章節 Boss",
     bg: ["#0c0714", "#1d1230", "#2c1424"],
-    mods: { enemyHp: 1.78, enemySpeed: 1.18, bulletSpeed: 1.3, hazardDelay: 0.64, laserRate: 0.68, bulletDrift: 1 },
+    mods: { enemyHp: 1.08, enemySpeed: 1.08, bulletSpeed: 1.08, hazardDelay: 0.92, laserRate: 0.88, bulletDrift: 1 },
   },
   {
     id: "2-1",
@@ -671,7 +737,7 @@ const STAGES = [
     theme: "#9b7cff",
     trait: "二章開端",
     bg: ["#080616", "#16102d", "#23112c"],
-    mods: { enemyHp: 1.92, enemySpeed: 1.2, bulletSpeed: 1.34, hazardDelay: 0.62, bulletDrift: 1 },
+    mods: { enemyHp: 1.05, enemySpeed: 1.06, bulletSpeed: 1.05, hazardDelay: 0.96, bulletDrift: 1 },
   },
   {
     id: "2-2",
@@ -692,7 +758,7 @@ const STAGES = [
     theme: "#77f5a6",
     trait: "魂燈聚怪",
     bg: ["#06110e", "#102418", "#151b26"],
-    mods: { enemyHp: 2.02, enemySpeed: 1.16, bulletSpeed: 1.28, bulletSize: 1.08, hazardDelay: 0.66 },
+    mods: { enemyHp: 1.06, enemySpeed: 1.04, bulletSpeed: 1.04, bulletSize: 1.08, hazardDelay: 0.98 },
   },
   {
     id: "2-3",
@@ -713,7 +779,7 @@ const STAGES = [
     theme: "#ff6b6b",
     trait: "熔火快彈",
     bg: ["#15070a", "#2b1010", "#31150f"],
-    mods: { enemyHp: 2.12, enemySpeed: 1.22, bulletSpeed: 1.42, hazardDelay: 0.58 },
+    mods: { enemyHp: 1.07, enemySpeed: 1.07, bulletSpeed: 1.08, hazardDelay: 0.94 },
   },
   {
     id: "2-4",
@@ -734,7 +800,7 @@ const STAGES = [
     theme: "#ffd166",
     trait: "連續雷射",
     bg: ["#07101e", "#17223b", "#20152e"],
-    mods: { enemyHp: 2.22, enemySpeed: 1.24, bulletSpeed: 1.38, hazardDelay: 0.54, laserRate: 0.62 },
+    mods: { enemyHp: 1.07, enemySpeed: 1.08, bulletSpeed: 1.06, hazardDelay: 0.92, laserRate: 0.88 },
   },
   {
     id: "2-5",
@@ -755,7 +821,7 @@ const STAGES = [
     theme: "#7aa7ff",
     trait: "寬幅壓場",
     bg: ["#04111f", "#072b38", "#10152d"],
-    mods: { enemyHp: 2.32, enemySpeed: 1.12, bulletSpeed: 1.2, bulletSize: 1.24, hazardDelay: 0.62 },
+    mods: { enemyHp: 1.08, enemySpeed: 1.03, bulletSpeed: 1.04, bulletSize: 1.16, hazardDelay: 0.96 },
   },
   {
     id: "2-6",
@@ -776,7 +842,7 @@ const STAGES = [
     theme: "#a678ff",
     trait: "偏移彈幕",
     bg: ["#080719", "#171238", "#251132"],
-    mods: { enemyHp: 2.44, enemySpeed: 1.22, bulletSpeed: 1.42, hazardDelay: 0.5, bulletDrift: 1 },
+    mods: { enemyHp: 1.08, enemySpeed: 1.07, bulletSpeed: 1.08, hazardDelay: 0.9, bulletDrift: 1 },
   },
   {
     id: "2-7",
@@ -797,7 +863,7 @@ const STAGES = [
     theme: "#ff8ab3",
     trait: "快慢混合",
     bg: ["#140914", "#25132a", "#151b31"],
-    mods: { enemyHp: 2.56, enemySpeed: 1.26, bulletSpeed: 1.46, bulletSize: 0.98, hazardDelay: 0.48, laserRate: 0.6 },
+    mods: { enemyHp: 1.08, enemySpeed: 1.08, bulletSpeed: 1.09, bulletSize: 0.98, hazardDelay: 0.88, laserRate: 0.86 },
   },
   {
     id: "2-8",
@@ -818,7 +884,7 @@ const STAGES = [
     theme: "#35c8d8",
     trait: "高密度敵群",
     bg: ["#061014", "#102832", "#10151e"],
-    mods: { enemyHp: 2.7, enemySpeed: 1.3, bulletSpeed: 1.48, hazardDelay: 0.44 },
+    mods: { enemyHp: 1.09, enemySpeed: 1.09, bulletSpeed: 1.09, hazardDelay: 0.86 },
   },
   {
     id: "2-9",
@@ -839,7 +905,7 @@ const STAGES = [
     theme: "#f2d27a",
     trait: "扇形彈海",
     bg: ["#120b08", "#251b11", "#2d1d12"],
-    mods: { enemyHp: 2.86, enemySpeed: 1.28, bulletSpeed: 1.52, hazardDelay: 0.42, laserRate: 0.56, bulletDrift: 1 },
+    mods: { enemyHp: 1.09, enemySpeed: 1.08, bulletSpeed: 1.1, hazardDelay: 0.84, laserRate: 0.84, bulletDrift: 1 },
   },
   {
     id: "2-10",
@@ -861,7 +927,7 @@ const STAGES = [
     theme: "#c084fc",
     trait: "二章 Boss",
     bg: ["#0b0716", "#1c1030", "#2b1234"],
-    mods: { enemyHp: 3.05, enemySpeed: 1.32, bulletSpeed: 1.58, hazardDelay: 0.38, laserRate: 0.52, bulletDrift: 1 },
+    mods: { enemyHp: 1.1, enemySpeed: 1.1, bulletSpeed: 1.1, hazardDelay: 0.82, laserRate: 0.82, bulletDrift: 1 },
   },
 ];
 
@@ -1696,6 +1762,153 @@ function stageIndex(stage = selectedStage()) {
 
 function stageMods(stage = state.currentStage || selectedStage()) {
   return stage?.mods || STAGES[0].mods;
+}
+
+function stageDifficulty(stage = state.currentStage || selectedStage()) {
+  const index = Math.max(0, stageIndex(stage));
+  const bandId = index <= 2
+    ? "onboarding"
+    : index <= 6
+      ? "learning"
+      : index <= 9
+        ? "chapterBoss"
+        : "advanced";
+  const band = BALANCE_CURVE[bandId];
+  const [start, end] = band.range;
+  const localT = clamp((index - start) / Math.max(1, end - start), 0, 1);
+  return {
+    index,
+    bandId,
+    band,
+    localT,
+    globalT: clamp(index / Math.max(1, STAGES.length - 1), 0, 1),
+  };
+}
+
+function waveDifficulty(wave = state.wave, stage = state.currentStage || selectedStage()) {
+  const waves = stage?.waves || 10;
+  const safeWave = clamp(Math.round(wave || 1), 1, waves);
+  return {
+    wave: safeWave,
+    progress: waves <= 1 ? 0 : clamp((safeWave - 1) / (waves - 1), 0, 1),
+    early: safeWave <= 3,
+  };
+}
+
+function combatDifficulty(stage = state.currentStage || selectedStage(), wave = state.wave) {
+  const stageInfo = stageDifficulty(stage);
+  const waveInfo = waveDifficulty(wave, stage);
+  const band = stageInfo.band;
+  const mods = stageMods(stage);
+  const waveLift = 1 + waveInfo.progress * band.waveGrowth;
+  const stageAndWave = (range, mod = 1) => lerp(range[0], range[1], stageInfo.localT) * waveLift * mod;
+  const allowFan = stageInfo.index >= 3 || (stageInfo.index >= 2 && waveInfo.wave >= 3);
+  const allowSpray = allowFan;
+
+  return {
+    stage: stageInfo,
+    wave: waveInfo,
+    enemyHp: stageAndWave(band.hp, mods.enemyHp || 1),
+    enemySpeed: stageAndWave(band.speed, mods.enemySpeed || 1),
+    bulletSpeed: stageAndWave(band.bulletSpeed, mods.bulletSpeed || 1),
+    bulletDamage: stageAndWave(band.bulletDamage, mods.bulletDamage || 1),
+    shootDelay: lerp(band.shootDelay[0], band.shootDelay[1], stageInfo.localT) / (1 + waveInfo.progress * band.waveGrowth * 0.45),
+    spawnPace: lerp(band.spawnPace[0], band.spawnPace[1], stageInfo.localT) / (1 + waveInfo.progress * band.waveGrowth * 0.55),
+    bulletBaseSpeed: lerp(band.bulletBase[0], band.bulletBase[1], stageInfo.localT) + waveInfo.progress * 18,
+    bulletSize: mods.bulletSize || 1,
+    bulletDrift: mods.bulletDrift ? lerp(14, 34, stageInfo.globalT) : 0,
+    hazardDelay: (mods.hazardDelay || 1) * lerp(1.12, 0.92, waveInfo.progress),
+    hazardEnabled: stageInfo.index >= 3,
+    hazardDamage: stageInfo.index >= 10 ? 2 : stageInfo.index >= 7 ? 1.5 : 1,
+    laserChance: clamp(0.24 + stageInfo.globalT * 0.38 + (1 - (mods.laserRate || 1)) * 0.34, 0.18, 0.72),
+    allowFan,
+    allowSpray,
+    singleShots: stageInfo.index === 0 && waveInfo.wave <= 3 ? 1 : 2,
+  };
+}
+
+function enemyStatProfile(kind, stage = state.currentStage || selectedStage(), wave = state.wave, type = kind) {
+  const difficulty = combatDifficulty(stage, wave);
+  const hpRole = {
+    boss: 1,
+    elite: 1,
+    brute: 1.08,
+    skimmer: 0.82,
+    wisp: 0.94,
+  }[type] || 1;
+  const speedRole = {
+    boss: 0.58,
+    elite: 0.86,
+    brute: 0.78,
+    skimmer: 1.12,
+    wisp: 1,
+  }[type] || 1;
+  return {
+    hp: difficulty.enemyHp * hpRole * COMBAT_TUNING.enemyHp,
+    speed: difficulty.enemySpeed * speedRole * COMBAT_TUNING.enemySpeed,
+    shootDelay: difficulty.shootDelay * COMBAT_TUNING.enemyShootDelay,
+    hazardDelay: difficulty.hazardDelay,
+    bulletSpeed: difficulty.bulletSpeed * COMBAT_TUNING.enemyBulletSpeed,
+    bulletDamage: difficulty.bulletDamage * COMBAT_TUNING.enemyBulletDamage,
+    bulletBaseSpeed: difficulty.bulletBaseSpeed,
+    bulletSize: difficulty.bulletSize,
+    bulletDrift: difficulty.bulletDrift,
+    hazardEnabled: difficulty.hazardEnabled,
+    hazardDamage: difficulty.hazardDamage,
+    laserChance: difficulty.laserChance,
+    allowFan: difficulty.allowFan,
+    allowSpray: difficulty.allowSpray,
+    singleShots: difficulty.singleShots,
+  };
+}
+
+function spawnProfile(stage = state.currentStage || selectedStage(), wave = state.wave) {
+  const difficulty = combatDifficulty(stage, wave);
+  const band = difficulty.stage.band;
+  const index = difficulty.stage.index;
+  const firstTutorial = index === 0 && difficulty.wave.wave <= 3;
+  const earlyOnboarding = index <= 2;
+  const packTwoChance = firstTutorial ? 0 : lerp(band.packTwoChance[0], band.packTwoChance[1], difficulty.stage.localT) + difficulty.wave.progress * 0.12;
+  const packThreeChance = firstTutorial || earlyOnboarding
+    ? 0
+    : lerp(band.packThreeChance[0], band.packThreeChance[1], difficulty.stage.localT) + difficulty.wave.progress * 0.08;
+  const packCount = 1 +
+    (Math.random() < packTwoChance ? 1 : 0) +
+    (Math.random() < packThreeChance ? 1 : 0);
+
+  return {
+    firstTutorial,
+    forceWisp: firstTutorial,
+    allowElite: difficulty.wave.wave >= (index === 0 ? 4 : band.eliteStartWave),
+    eliteStartWave: index === 0 ? 4 : band.eliteStartWave,
+    eliteEveryWaves: band.eliteEveryWaves,
+    eliteCap: band.eliteCap,
+    eliteKillStep: firstTutorial ? 999 : Math.max(10, Math.round(13 + index * 0.85)),
+    packCount,
+    paceMin: Math.max(0.72, difficulty.spawnPace * 0.84 * COMBAT_TUNING.enemySpawnPace),
+    paceMax: Math.max(0.96, difficulty.spawnPace * 1.18 * COMBAT_TUNING.enemySpawnPace),
+    bruteChance: firstTutorial ? 0 : clamp(0.08 + index * 0.007 + difficulty.wave.progress * 0.06, 0.06, 0.22),
+    skimmerChance: firstTutorial ? 0 : clamp(0.2 + index * 0.004 + difficulty.wave.progress * 0.04, 0.2, 0.38),
+    allowFan: difficulty.allowFan,
+    allowSpray: difficulty.allowSpray,
+  };
+}
+
+function normalEnemyType(roll, profile) {
+  if (profile.forceWisp) return "wisp";
+  if (roll < profile.bruteChance) return "brute";
+  if (roll < profile.bruteChance + profile.skimmerChance) return "skimmer";
+  return "wisp";
+}
+
+function enemyPatternFor(type, roll, profile) {
+  if (type === "elite") {
+    if (profile.allowFan && profile.allowSpray) return roll < 0.5 ? "fan" : "spray";
+    return "single";
+  }
+  if (type === "brute") return profile.allowFan && roll < 0.72 ? "fan" : "single";
+  if (type === "skimmer") return profile.allowSpray && roll < 0.78 ? "spray" : "single";
+  return profile.allowFan && roll > 0.86 ? "fan" : "single";
 }
 
 function drawDragonPortrait(targetCtx, dragon, width, height, time = 0) {
@@ -3058,7 +3271,7 @@ function applyShotImpact(shot, enemy) {
 function spawnEnemy(kind = "normal") {
   const wave = state.wave;
   const roll = Math.random();
-  const mods = stageMods();
+  const spawnRules = spawnProfile(state.currentStage, wave);
   const enemy = {
     x: rand(34, state.w - 34),
     y: -34,
@@ -3073,6 +3286,7 @@ function spawnEnemy(kind = "normal") {
 
   if (kind === "boss") {
     const bossTactic = bossTacticForStage(state.currentStage);
+    const bossProfile = enemyStatProfile("boss", state.currentStage, wave, "boss");
     Object.assign(enemy, {
       type: "boss",
       r: 38,
@@ -3087,47 +3301,64 @@ function spawnEnemy(kind = "normal") {
       hazard: 1.8,
       name: state.currentStage.boss,
     });
+    enemy.hp = Math.round(enemy.hp * bossProfile.hp);
+    enemy.speed *= bossProfile.speed;
+    enemy.shoot *= bossProfile.shootDelay;
+    enemy.hazard *= bossProfile.hazardDelay;
   } else if (kind === "elite") {
+    const eliteProfile = enemyStatProfile("elite", state.currentStage, wave, "elite");
     Object.assign(enemy, {
       type: "elite",
       r: 29,
-      hp: 220 + wave * 32,
-      speed: 31 + wave * 2.2,
-      pattern: roll < 0.5 ? "fan" : "spray",
+      hp: 125 + wave * 10,
+      speed: 30 + wave * 1.4,
+      pattern: enemyPatternFor("elite", roll, spawnRules),
       color: "#ffd166",
       score: 430,
       hazard: 2.3,
     });
-  } else if (roll < 0.18 + wave * 0.015) {
-    Object.assign(enemy, {
-      type: "brute",
-      r: 24,
-      hp: 84 + wave * 9,
-      speed: 42 + wave * 3.2,
-      pattern: "fan",
-      color: "#ffd166",
-      score: 160,
-    });
-  } else if (roll < 0.46) {
-    Object.assign(enemy, {
-      type: "skimmer",
-      r: 15,
-      hp: 36 + wave * 5,
-      speed: 92 + wave * 6.4,
-      pattern: "spray",
-      color: "#9b7cff",
-      score: 115,
-    });
+    enemy.hp = Math.round(enemy.hp * eliteProfile.hp);
+    enemy.speed *= eliteProfile.speed;
+    enemy.shoot *= eliteProfile.shootDelay;
+    enemy.hazard *= eliteProfile.hazardDelay;
   } else {
-    Object.assign(enemy, {
-      type: "wisp",
-      r: 18,
-      hp: 48 + wave * 6,
-      speed: 64 + wave * 4.4,
-      pattern: wave > 3 && roll > 0.82 ? "fan" : "single",
-      color: "#42efd2",
-      score: 125,
-    });
+    const type = normalEnemyType(roll, spawnRules);
+    const statProfile = enemyStatProfile("normal", state.currentStage, wave, type);
+    if (type === "brute") {
+      Object.assign(enemy, {
+        type: "brute",
+        r: 24,
+        hp: 28 + wave * 2.6,
+        speed: 38 + wave * 1.8,
+        pattern: enemyPatternFor(type, roll, spawnRules),
+        color: "#ffd166",
+        score: 160,
+      });
+    } else if (type === "skimmer") {
+      Object.assign(enemy, {
+        type: "skimmer",
+        r: 15,
+        hp: 12 + wave * 1.2,
+        speed: 74 + wave * 3.1,
+        pattern: enemyPatternFor(type, roll, spawnRules),
+        color: "#9b7cff",
+        score: 115,
+      });
+    } else {
+      Object.assign(enemy, {
+        type: "wisp",
+        r: 18,
+        hp: 15 + wave * 1.5,
+        speed: 52 + wave * 2.2,
+        pattern: enemyPatternFor(type, roll, spawnRules),
+        color: "#42efd2",
+        score: 125,
+      });
+    }
+    enemy.hp = Math.round(enemy.hp * statProfile.hp);
+    enemy.speed *= statProfile.speed;
+    enemy.shoot *= statProfile.shootDelay;
+    enemy.hazard *= statProfile.hazardDelay;
   }
 
   const themeSkin = enemyThemeSkin(state.currentStage);
@@ -3140,10 +3371,6 @@ function spawnEnemy(kind = "normal") {
   enemy.skinCore = themeSkin.core;
   enemy.color = enemyThemeColor(enemy.type, state.currentStage);
   enemy.bulletColor = enemy.type === "boss" ? enemy.color : themeSkin.palette[(ENEMY_TYPE_SKIN_INDEX[enemy.type] + 1) % themeSkin.palette.length] || enemy.color;
-  enemy.hp = Math.round(enemy.hp * (mods.enemyHp || 1) * COMBAT_TUNING.enemyHp);
-  enemy.speed *= (mods.enemySpeed || 1) * COMBAT_TUNING.enemySpeed;
-  enemy.shoot *= COMBAT_TUNING.enemyShootDelay;
-  enemy.hazard *= mods.hazardDelay || 1;
   enemy.maxHp = enemy.hp;
   if (kind === "boss") {
     state.currentBoss = enemy;
@@ -3153,16 +3380,16 @@ function spawnEnemy(kind = "normal") {
 }
 
 function fireEnemyBullet(enemy, angle, speed, radius = 6, color = enemy.bulletColor || enemy.color) {
-  const mods = stageMods();
-  const drift = mods.bulletDrift ? Math.sin(state.time * 1.7 + enemy.phase) * 34 : 0;
-  const bulletSpeed = speed * (mods.bulletSpeed || 1) * COMBAT_TUNING.enemyBulletSpeed;
+  const profile = enemyStatProfile(enemy.kind, state.currentStage, state.wave, enemy.type || enemy.kind);
+  const drift = profile.bulletDrift ? Math.sin(state.time * 1.7 + enemy.phase) * profile.bulletDrift : 0;
+  const bulletSpeed = speed * profile.bulletSpeed;
   state.bullets.push({
     x: enemy.x,
     y: enemy.y + enemy.r * 0.7,
     vx: Math.cos(angle) * bulletSpeed + drift,
     vy: Math.sin(angle) * bulletSpeed,
-    r: radius * (mods.bulletSize || 1),
-    damage: (radius > 7 ? 1.16 : 1) * COMBAT_TUNING.enemyBulletDamage,
+    r: radius * profile.bulletSize,
+    damage: (radius > 7 ? 1.16 : 1) * profile.bulletDamage,
     color,
     power: radius > 7 ? 11 : 7,
     spin: rand(0, TAU),
@@ -3217,41 +3444,46 @@ function bossShoot(enemy, angleToPlayer, speed) {
 function enemyShoot(enemy) {
   const player = state.player;
   const angleToPlayer = Math.atan2(player.y - enemy.y, player.x - enemy.x);
-  const speed = 145 + state.wave * 9;
+  const profile = enemyStatProfile(enemy.kind, state.currentStage, state.wave, enemy.type || enemy.kind);
+  const speed = profile.bulletBaseSpeed;
 
   if (enemy.kind === "boss") {
     bossShoot(enemy, angleToPlayer, speed);
     return;
   }
 
-  if (enemy.pattern === "fan") {
+  if (enemy.pattern === "fan" && profile.allowFan) {
     for (const offset of [-0.48, -0.24, 0, 0.24, 0.48]) {
       fireEnemyBullet(enemy, angleToPlayer + offset, speed * 0.9, 7);
     }
-  } else if (enemy.pattern === "spray") {
+  } else if (enemy.pattern === "spray" && profile.allowSpray) {
     for (let i = -2; i <= 2; i += 1) {
       fireEnemyBullet(enemy, Math.PI / 2 + i * 0.2 + Math.sin(state.time + enemy.phase) * 0.16, speed * 0.98, 5);
     }
+  } else if (profile.singleShots <= 1) {
+    fireEnemyBullet(enemy, angleToPlayer, speed * 0.86, 5.6);
   } else {
-    fireEnemyBullet(enemy, angleToPlayer - 0.14, speed, 6);
-    fireEnemyBullet(enemy, angleToPlayer + 0.14, speed, 6);
+    fireEnemyBullet(enemy, angleToPlayer - 0.12, speed * 0.94, 6);
+    fireEnemyBullet(enemy, angleToPlayer + 0.12, speed * 0.94, 6);
   }
 }
 
 function spawnEnemyHazard(enemy) {
   const player = state.player;
   const color = enemy.color || (enemy.kind === "boss" ? state.currentStage.theme : enemy.skinAccent);
-  const mods = stageMods();
-  const laserChance = clamp(0.58 + (1 - (mods.laserRate || 1)) * 0.36, 0.36, 0.86);
+  const profile = enemyStatProfile(enemy.kind, state.currentStage, state.wave, enemy.type || enemy.kind);
+  if (!profile.hazardEnabled) return;
+  const hazardDamage = enemy.kind === "boss" ? profile.hazardDamage + 0.35 : profile.hazardDamage;
+  const laserChance = profile.laserChance;
   if (enemy.kind === "boss" && Math.random() < laserChance) {
     state.hazards.push({
       type: "laser",
       x: clamp(player.x + rand(-34, 34), 26, state.w - 26),
       width: 30 + state.wave * 2,
-      warning: 0.9 * (mods.hazardDelay || 1),
+      warning: 0.9 * profile.hazardDelay,
       duration: 0.48,
-      life: 1.38 * (mods.hazardDelay || 1),
-      damage: 2,
+      life: 1.38 * profile.hazardDelay,
+      damage: hazardDamage,
       color,
       hit: false,
     });
@@ -3261,10 +3493,10 @@ function spawnEnemyHazard(enemy) {
       x: clamp(player.x + rand(-42, 42), 42, state.w - 42),
       y: clamp(player.y + rand(-34, 24), 140, state.h - 92),
       r: enemy.kind === "boss" ? 72 : 54,
-      warning: (enemy.kind === "boss" ? 1.0 : 0.82) * (mods.hazardDelay || 1),
+      warning: (enemy.kind === "boss" ? 1.0 : 0.82) * profile.hazardDelay,
       duration: 0.44,
-      life: (enemy.kind === "boss" ? 1.44 : 1.26) * (mods.hazardDelay || 1),
-      damage: enemy.kind === "boss" ? 2 : 1,
+      life: (enemy.kind === "boss" ? 1.44 : 1.26) * profile.hazardDelay,
+      damage: hazardDamage,
       color,
       hit: false,
     });
@@ -4538,30 +4770,22 @@ function update(dt) {
     showWaveBanner(`${boss?.bossTacticName || "Boss"} 來襲`);
     state.spawnTimer = 2.0;
   } else if (!state.bossSpawned && state.elitesSpawned < state.currentStage.waves - 1) {
-    const eliteWave = state.elitesSpawned + 2;
-    const killPressure = state.stageKills >= (state.elitesSpawned + 1) * 12;
-    if (state.wave >= eliteWave || killPressure) {
+    const profile = spawnProfile(state.currentStage, state.wave);
+    const eliteWave = profile.eliteStartWave + state.elitesSpawned * profile.eliteEveryWaves;
+    const killPressure = state.stageKills >= (state.elitesSpawned + 1) * profile.eliteKillStep;
+    if (profile.allowElite && state.elitesSpawned < profile.eliteCap && (state.wave >= eliteWave || killPressure)) {
       spawnEnemy("elite");
       state.elitesSpawned += 1;
-      state.spawnTimer = 1.1;
+      state.spawnTimer = Math.max(state.spawnTimer, profile.paceMin * 0.78);
     }
   }
 
   if (!state.bossSpawned && state.spawnTimer <= 0) {
-    const stagePressure = stageIndex(state.currentStage);
-    const packCount =
-      1 +
-      (state.wave >= 2 && Math.random() < 0.34 ? 1 : 0) +
-      (state.wave >= 4 && Math.random() < 0.46 ? 1 : 0) +
-      (state.wave >= 6 && Math.random() < 0.42 ? 1 : 0) +
-      (stagePressure >= 4 && Math.random() < 0.36 ? 1 : 0) +
-      (stagePressure >= 9 && Math.random() < 0.32 ? 1 : 0) +
-      (stagePressure >= 14 && Math.random() < 0.24 ? 1 : 0);
-    for (let i = 0; i < packCount; i += 1) {
+    const profile = spawnProfile(state.currentStage, state.wave);
+    for (let i = 0; i < profile.packCount; i += 1) {
       spawnEnemy();
     }
-    const pace = Math.max(0.26, (1.08 - state.wave * 0.055) * COMBAT_TUNING.enemySpawnPace);
-    state.spawnTimer = rand(pace * 0.58, pace * 0.98);
+    state.spawnTimer = rand(profile.paceMin, profile.paceMax);
   }
 
   updatePlayer(dt);
