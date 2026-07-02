@@ -99,7 +99,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "79";
+const ASSET_VERSION = "80";
 const COMBAT_TUNING = {
   tailSway: 0.17,
   tailLift: 0.24,
@@ -118,6 +118,16 @@ const COMBAT_TUNING = {
   absorbPullStrength: 1.02,
   baseSwallowLength: 78,
   baseSwallowWidth: 25,
+  playerBulletHitboxX: 0.68,
+  playerBulletHitboxY: 0.9,
+  playerAbsorbHitboxX: 0.56,
+  playerAbsorbHitboxY: 0.76,
+  playerBulletRadiusGrace: 0.56,
+  playerHitboxYOffset: 0.04,
+  playerContactHitbox: 0.56,
+  enemyContactHitbox: 0.82,
+  playerLaserHitbox: 0.34,
+  playerHazardHitbox: 0.36,
   breathShotDamage: 0.32,
   breathBeamDamage: 0.22,
   ultimateDamage: 0.25,
@@ -3163,11 +3173,18 @@ function swallowCaptureDistance(bullet, snap = bullet.absorbSnap || 0) {
 }
 
 function bulletTouchesPlayerBody(bullet, player) {
-  const bodyX = player.r * (input.absorbing ? 0.84 : 0.94) + bullet.r * 0.9;
-  const bodyY = player.r * (input.absorbing ? 1.08 : 1.22) + bullet.r * 0.9;
+  const hitboxX = input.absorbing ? COMBAT_TUNING.playerAbsorbHitboxX : COMBAT_TUNING.playerBulletHitboxX;
+  const hitboxY = input.absorbing ? COMBAT_TUNING.playerAbsorbHitboxY : COMBAT_TUNING.playerBulletHitboxY;
+  const bodyX = player.r * hitboxX + bullet.r * COMBAT_TUNING.playerBulletRadiusGrace;
+  const bodyY = player.r * hitboxY + bullet.r * COMBAT_TUNING.playerBulletRadiusGrace;
   const dx = bullet.x - player.x;
-  const dy = bullet.y - (player.y + player.r * 0.1);
+  const dy = bullet.y - (player.y + player.r * COMBAT_TUNING.playerHitboxYOffset);
   return (dx / bodyX) ** 2 + (dy / bodyY) ** 2 < 1;
+}
+
+function enemyTouchesPlayer(enemy, player) {
+  const radius = enemy.r * COMBAT_TUNING.enemyContactHitbox + player.r * COMBAT_TUNING.playerContactHitbox;
+  return dist2(enemy.x, enemy.y, player.x, player.y) < radius ** 2;
 }
 
 function addUltimateCharge(amount) {
@@ -4135,7 +4152,7 @@ function updateEnemies(dt) {
       enemy.hazard = enemy.kind === "boss" ? rand(2.0, 3.0) : rand(3.1, 4.5);
     }
 
-    if (dist2(enemy.x, enemy.y, state.player.x, state.player.y) < (enemy.r + state.player.r) ** 2) {
+    if (enemyTouchesPlayer(enemy, state.player)) {
       damagePlayer(2);
       enemy.hp = 0;
     }
@@ -4688,11 +4705,11 @@ function updateHazards(dt) {
 
     if (active && !hazard.hit) {
       if (hazard.type === "laser") {
-        if (Math.abs(player.x - hazard.x) < hazard.width / 2 + player.r * 0.55) {
+        if (Math.abs(player.x - hazard.x) < hazard.width / 2 + player.r * COMBAT_TUNING.playerLaserHitbox) {
           damagePlayer(hazard.damage);
           hazard.hit = true;
         }
-      } else if (dist2(player.x, player.y, hazard.x, hazard.y) < (hazard.r + player.r * 0.55) ** 2) {
+      } else if (dist2(player.x, player.y, hazard.x, hazard.y) < (hazard.r + player.r * COMBAT_TUNING.playerHazardHitbox) ** 2) {
         damagePlayer(hazard.damage);
         hazard.hit = true;
       }
