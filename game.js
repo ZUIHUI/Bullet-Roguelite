@@ -99,7 +99,7 @@ const FIREBASE_GAME_ID = "star-swallow-dragon";
 const FIREBASE_SAVE_SLOT = "solo-default";
 const FIREBASE_SDK_VERSION = "10.12.5";
 const FIREBASE_COLLECTION = "singlePlayerSaves";
-const ASSET_VERSION = "78";
+const ASSET_VERSION = "79";
 const COMBAT_TUNING = {
   tailSway: 0.17,
   tailLift: 0.24,
@@ -522,7 +522,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 80,
     gold: 70,
-    scales: 18,
+    scales: 34,
     theme: "#42efd2",
     trait: "基礎彈幕",
     bg: ["#05070d", "#091019", "#130c14"],
@@ -543,7 +543,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 115,
     gold: 86,
-    scales: 21,
+    scales: 39,
     theme: "#7aa7ff",
     trait: "寬幅泡彈",
     bg: ["#04111e", "#062a35", "#0d1028"],
@@ -564,7 +564,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 150,
     gold: 104,
-    scales: 24,
+    scales: 44,
     theme: "#ff6b6b",
     trait: "高壓快彈",
     bg: ["#14080b", "#251012", "#2d1410"],
@@ -585,7 +585,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 190,
     gold: 124,
-    scales: 27,
+    scales: 50,
     theme: "#ffd166",
     trait: "雷射密集",
     bg: ["#07101b", "#142034", "#1a1432"],
@@ -606,7 +606,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 235,
     gold: 146,
-    scales: 31,
+    scales: 57,
     theme: "#9b7cff",
     trait: "裂隙亂流",
     bg: ["#090718", "#161132", "#250f30"],
@@ -627,7 +627,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 285,
     gold: 170,
-    scales: 36,
+    scales: 65,
     theme: "#77f5a6",
     trait: "耐久小怪",
     bg: ["#06120e", "#0d2418", "#111925"],
@@ -648,7 +648,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 340,
     gold: 196,
-    scales: 41,
+    scales: 74,
     theme: "#ff8ab3",
     trait: "密集散射",
     bg: ["#150914", "#251225", "#15182a"],
@@ -669,7 +669,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 400,
     gold: 225,
-    scales: 48,
+    scales: 86,
     theme: "#35c8d8",
     trait: "節奏加速",
     bg: ["#071014", "#10252b", "#11151d"],
@@ -690,7 +690,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 470,
     gold: 258,
-    scales: 56,
+    scales: 98,
     theme: "#a678ff",
     trait: "雷射範圍混合",
     bg: ["#09091b", "#17113a", "#21122d"],
@@ -712,7 +712,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 550,
     gold: 320,
-    scales: 70,
+    scales: 120,
     theme: "#f2d27a",
     trait: "章節 Boss",
     bg: ["#0c0714", "#1d1230", "#2c1424"],
@@ -733,7 +733,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 640,
     gold: 360,
-    scales: 82,
+    scales: 132,
     theme: "#9b7cff",
     trait: "二章開端",
     bg: ["#080616", "#16102d", "#23112c"],
@@ -754,7 +754,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 735,
     gold: 402,
-    scales: 94,
+    scales: 148,
     theme: "#77f5a6",
     trait: "魂燈聚怪",
     bg: ["#06110e", "#102418", "#151b26"],
@@ -775,7 +775,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 835,
     gold: 448,
-    scales: 108,
+    scales: 166,
     theme: "#ff6b6b",
     trait: "熔火快彈",
     bg: ["#15070a", "#2b1010", "#31150f"],
@@ -796,7 +796,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 940,
     gold: 498,
-    scales: 123,
+    scales: 186,
     theme: "#ffd166",
     trait: "連續雷射",
     bg: ["#07101e", "#17223b", "#20152e"],
@@ -817,7 +817,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 1050,
     gold: 552,
-    scales: 140,
+    scales: 208,
     theme: "#7aa7ff",
     trait: "寬幅壓場",
     bg: ["#04111f", "#072b38", "#10152d"],
@@ -838,7 +838,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 1165,
     gold: 610,
-    scales: 158,
+    scales: 232,
     theme: "#a678ff",
     trait: "偏移彈幕",
     bg: ["#080719", "#171238", "#251132"],
@@ -859,7 +859,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 1285,
     gold: 672,
-    scales: 178,
+    scales: 258,
     theme: "#ff8ab3",
     trait: "快慢混合",
     bg: ["#140914", "#25132a", "#151b31"],
@@ -880,7 +880,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 1410,
     gold: 738,
-    scales: 200,
+    scales: 286,
     theme: "#35c8d8",
     trait: "高密度敵群",
     bg: ["#061014", "#102832", "#10151e"],
@@ -901,7 +901,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 1540,
     gold: 808,
-    scales: 224,
+    scales: 316,
     theme: "#f2d27a",
     trait: "扇形彈海",
     bg: ["#120b08", "#251b11", "#2d1d12"],
@@ -923,7 +923,7 @@ const STAGES = [
     waveSeconds: 20,
     power: 1680,
     gold: 900,
-    scales: 255,
+    scales: 360,
     theme: "#c084fc",
     trait: "二章 Boss",
     bg: ["#0b0716", "#1c1030", "#2b1234"],
@@ -1267,7 +1267,7 @@ function createDefaultMeta() {
     gameId: FIREBASE_GAME_ID,
     saveSlot: FIREBASE_SAVE_SLOT,
     gold: 260,
-    scales: 80,
+    scales: 160,
     idleGold: 0,
     equipmentLevel: 0,
     skillLevel: 0,
@@ -4361,7 +4361,7 @@ function stageMissionSummary(cleared = false) {
     completed,
     total: items.length,
     bonusGold: cleared ? completed * (16 + Math.floor(index * 2.5)) : 0,
-    bonusScales: cleared ? Math.floor(completed / 2) + (completed === items.length ? 1 : 0) : 0,
+    bonusScales: cleared ? completed * 2 + (completed === items.length ? 2 : 0) : 0,
   };
 }
 
@@ -6734,9 +6734,13 @@ function endRun() {
   updateBossHud();
   renderMissionTracker();
   const partialGold = Math.floor(state.score / 180);
-  const partialScales = Math.floor(state.stageKills / 12);
   const performance = runPerformance(false);
   const mission = stageMissionSummary(false);
+  const stageIndexBonus = state.currentStage ? Math.floor(stageIndex(state.currentStage) / 4) : 0;
+  const partialScales = Math.max(
+    state.wave >= 2 ? 2 : 0,
+    Math.floor(state.stageKills / 5) + Math.floor(state.wave / 2) + mission.completed + stageIndexBonus,
+  );
   state.meta.gold += partialGold;
   state.meta.scales += partialScales;
   saveMeta();
@@ -6917,14 +6921,14 @@ function performSummon() {
     const dragon = selectedDragon();
     const meta = state.meta.dragons[dragon.id];
     meta.stars += 1;
-    state.meta.scales += 25;
+    state.meta.scales += 50;
     message = `龍魂共鳴：${dragon.name} 升星`;
     result = {
       dragon,
       label: "soul resonance",
       title: `${dragon.name} 升星`,
-      text: "所有龍都已加入，召喚轉化為龍魂共鳴並返還 25 龍晶。",
-      stats: [`${meta.stars}星`, `Lv.${meta.level}`, "+25晶", dragon.role],
+      text: "所有龍都已加入，召喚轉化為龍魂共鳴並返還 50 龍晶。",
+      stats: [`${meta.stars}星`, `Lv.${meta.level}`, "+50晶", dragon.role],
     };
     setHomeTab("dragons");
   }
